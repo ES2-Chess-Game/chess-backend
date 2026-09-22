@@ -4,15 +4,16 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import br.uff.chess.model.Board;
 import br.uff.chess.model.Color;
 import br.uff.chess.model.Game;
-import br.uff.chess.model.GameStatus;
 import br.uff.chess.model.Piece;
 import br.uff.chess.model.Position;
 import br.uff.chess.service.exceptions.GameNotFoundException;
+import br.uff.chess.service.exceptions.GameOverException;
 import br.uff.chess.service.exceptions.IllegalMoveException;
 import br.uff.chess.service.rules.CheckDetector;
 import br.uff.chess.service.rules.DefaultLegalMoveGenerator;
@@ -22,11 +23,16 @@ public class GameService {
 
     private final Map<String, Game> games = new ConcurrentHashMap<>();
 
-    private final CheckDetector checkDetector;
+    private final EndGameEvaluator endGameEvaluator;
     private final DefaultLegalMoveGenerator legalMoveGenerator;
 
+    @Autowired
     public GameService(CheckDetector checkDetector, DefaultLegalMoveGenerator legalMoveGenerator) {
-        this.checkDetector = checkDetector;
+        this(new EndGameEvaluator(checkDetector, legalMoveGenerator), legalMoveGenerator);
+    }
+
+    GameService(EndGameEvaluator endGameEvaluator, DefaultLegalMoveGenerator legalMoveGenerator) {
+        this.endGameEvaluator = endGameEvaluator;
         this.legalMoveGenerator = legalMoveGenerator;
     }
 
@@ -46,6 +52,10 @@ public class GameService {
 
     public Game move(String id, Position from, Position to) {
         Game game = getGame(id);
+
+        if (game.isFinalizada()) {
+            throw new GameOverException("A partida já foi encerrada");
+        }
 
         if (!Board.isInside(from) || !Board.isInside(to)) {
             throw new IllegalMoveException("Posição fora do tabuleiro");
@@ -70,8 +80,12 @@ public class GameService {
         board.set(to.row(), to.col(), piece);
         board.set(from.row(), from.col(), null);
         game.alternarTurno();
-        game.setStatus(checkDetector.isKingInCheck(board, game.getTurnoAtual())
-                ? GameStatus.XEQUE : GameStatus.EM_ANDAMENTO);
+
+        EndGameResult result = endGameEvaluator.evaluate(board, game.getTurnoAtual());
+        game.setStatus(result.status());
+        if (result.vencedor() != null) {
+            game.setVencedor(result.vencedor());
+        }
         return game;
     }
 }
