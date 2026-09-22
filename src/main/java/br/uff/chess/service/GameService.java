@@ -1,6 +1,7 @@
 package br.uff.chess.service;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -13,7 +14,10 @@ import br.uff.chess.model.Piece;
 import br.uff.chess.model.PieceType;
 import br.uff.chess.model.Position;
 import br.uff.chess.service.exceptions.GameNotFoundException;
+import br.uff.chess.service.exceptions.GameOverException;
 import br.uff.chess.service.exceptions.IllegalMoveException;
+import br.uff.chess.service.rules.CheckDetector;
+import br.uff.chess.service.rules.LegalMoveGenerator;
 import br.uff.chess.service.validator.BishopValidator;
 import br.uff.chess.service.validator.KingValidator;
 import br.uff.chess.service.validator.KnightValidator;
@@ -35,6 +39,19 @@ public class GameService {
             PieceType.REI, new KingValidator(),
             PieceType.PEAO, new PawnValidator());
 
+    /**
+     * Só fica presente quando implementações reais de {@link CheckDetector} e
+     * {@link LegalMoveGenerator} existirem como beans (funcionalidade de xeque
+     * e legalidade, em desenvolvimento por outro integrante). Até lá, a
+     * avaliação de fim de jogo é ignorada e o status permanece EM_ANDAMENTO.
+     */
+    private final Optional<EndGameEvaluator> endGameEvaluator;
+
+    public GameService(Optional<CheckDetector> checkDetector, Optional<LegalMoveGenerator> legalMoveGenerator) {
+        this.endGameEvaluator = checkDetector
+                .flatMap(cd -> legalMoveGenerator.map(lmg -> new EndGameEvaluator(cd, lmg)));
+    }
+
     public Game createGame() {
         Game game = new Game(UUID.randomUUID().toString(), new Board(), Color.BRANCA);
         games.put(game.getId(), game);
@@ -51,6 +68,10 @@ public class GameService {
 
     public Game move(String id, Position from, Position to) {
         Game game = getGame(id);
+
+        if (game.isFinalizada()) {
+            throw new GameOverException("A partida já foi encerrada");
+        }
 
         if (!Board.isInside(from) || !Board.isInside(to)) {
             throw new IllegalMoveException("Posição fora do tabuleiro");
@@ -76,6 +97,15 @@ public class GameService {
         board.set(to.row(), to.col(), piece);
         board.set(from.row(), from.col(), null);
         game.alternarTurno();
+
+        endGameEvaluator.ifPresent(evaluator -> {
+            EndGameResult result = evaluator.evaluate(board, game.getTurnoAtual());
+            game.setStatus(result.status());
+            if (result.vencedor() != null) {
+                game.setVencedor(result.vencedor());
+            }
+        });
+
         return game;
     }
 }
