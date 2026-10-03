@@ -36,7 +36,7 @@ O teste atual verifica o carregamento do contexto Spring (`contextLoads`).
 
 O tabuleiro é uma matriz 8x8 criada na posição inicial. `GameService` guarda cada partida em um `ConcurrentHashMap`, associada a um ID UUID. O mapa está apenas na memória do processo; reiniciar o backend remove todas as partidas. As dependências JPA aparecem comentadas no `build.gradle`, e não há camada de persistência ativa.
 
-Para validar um lance, o serviço escolhe o validador associado ao tipo da peça. Os validadores verificam os deslocamentos básicos, impedem que uma peça termine em uma casa da própria cor e verificam o caminho para movimentos de torre, bispo e rainha. Em caso de lance válido, o serviço move a peça e alterna o turno entre brancas e pretas.
+Para validar um lance, o serviço escolhe o validador associado ao tipo da peça e simula o resultado para impedir movimentos que deixem o próprio rei em xeque. A geração de lances legais também é usada pela IA, que avalia material e usa minimax com poda alpha-beta. Após cada lance, a partida identifica xeque-mate ou empate por afogamento.
 
 ## API HTTP
 
@@ -45,6 +45,7 @@ Para validar um lance, o serviço escolhe o validador associado ao tipo da peça
 | `POST` | `/api/partidas` | Cria partida no tabuleiro inicial, com as brancas no primeiro turno. |
 | `GET` | `/api/partidas/{id}` | Retorna o estado da partida ou `404` se o ID não existir. |
 | `POST` | `/api/partidas/{id}/lances` | Valida e aplica um movimento, retornando o estado atualizado. |
+| `POST` | `/api/partidas/{id}/ia` | A IA escolhe e aplica um lance para o lado da vez usando minimax com profundidade 3. |
 
 O corpo de um lance contém coordenadas inteiras de linha e coluna, entre `0` e `7`:
 
@@ -61,9 +62,9 @@ A linha `0` representa o topo da matriz e a coluna `0` corresponde à coluna `a`
 
 ## Regras implementadas e limites
 
-Há validadores para rei, rainha, torre, bispo, cavalo e peão. O peão pode avançar uma casa, avançar duas casas da posição inicial com o caminho livre e capturar na diagonal uma peça adversária. As peças de linha e diagonal não atravessam casas ocupadas; cavalos e reis podem capturar peças adversárias se o destino não tiver peça própria.
+Há validadores para rei, rainha, torre, bispo, cavalo e peão. O peão pode avançar uma casa, avançar duas casas da posição inicial com o caminho livre e capturar na diagonal uma peça adversária. As peças de linha e diagonal não atravessam casas ocupadas; cavalos e reis podem capturar peças adversárias se o destino não tiver peça própria. A API não permite capturar o rei adversário, e todo lance deve deixar o rei do jogador fora de xeque.
 
-O código não implementa roque, en passant ou promoção de peão. Também não verifica xeque, se um movimento deixa o próprio rei ameaçado, xeque-mate ou empate. `GameStatus` declara `EM_ANDAMENTO`, `XEQUE_MATE` e `EMPATE`, mas o fluxo atual não altera o status nem encerra a partida. Não há IA, contas, histórico persistido ou banco de dados configurado.
+O código não implementa roque, en passant ou promoção de peão. A IA é uma implementação base com avaliação material e busca limitada, sem heurísticas posicionais ou histórico. Não há contas, histórico persistido ou banco de dados configurado.
 
 ## Segurança e integração com o frontend
 

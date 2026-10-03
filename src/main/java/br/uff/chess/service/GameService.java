@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import br.uff.chess.model.Board;
 import br.uff.chess.model.Color;
 import br.uff.chess.model.Game;
+import br.uff.chess.model.GameStatus;
 import br.uff.chess.model.Piece;
 import br.uff.chess.model.PieceType;
 import br.uff.chess.model.Position;
@@ -28,17 +29,29 @@ public class GameService {
     private final EndGameEvaluator endGameEvaluator;
     private final DefaultLegalMoveGenerator legalMoveGenerator;
     private final CheckDetector checkDetector;
+    private final MinimaxAI minimaxAI;
 
     @Autowired
+    public GameService(CheckDetector checkDetector, DefaultLegalMoveGenerator legalMoveGenerator,
+            MinimaxAI minimaxAI) {
+        this(new EndGameEvaluator(checkDetector, legalMoveGenerator), legalMoveGenerator, checkDetector, minimaxAI);
+    }
+
     public GameService(CheckDetector checkDetector, DefaultLegalMoveGenerator legalMoveGenerator) {
         this(new EndGameEvaluator(checkDetector, legalMoveGenerator), legalMoveGenerator, checkDetector);
     }
 
     GameService(EndGameEvaluator endGameEvaluator, DefaultLegalMoveGenerator legalMoveGenerator,
-                CheckDetector checkDetector) {
+            CheckDetector checkDetector) {
+        this(endGameEvaluator, legalMoveGenerator, checkDetector, new MinimaxAI(new LegalMoveService()));
+    }
+
+    private GameService(EndGameEvaluator endGameEvaluator, DefaultLegalMoveGenerator legalMoveGenerator,
+            CheckDetector checkDetector, MinimaxAI minimaxAI) {
         this.endGameEvaluator = endGameEvaluator;
         this.legalMoveGenerator = legalMoveGenerator;
         this.checkDetector = checkDetector;
+        this.minimaxAI = minimaxAI;
     }
 
     public Game createGame() {
@@ -110,6 +123,26 @@ public class GameService {
             game.setVencedor(result.vencedor());
         }
         return game;
+    }
+
+    public Game playAiMove(String id) {
+        Game game = getGame(id);
+        if (game.isFinalizada()) {
+            throw new GameOverException("A partida já foi encerrada");
+        }
+
+        var move = minimaxAI.chooseMove(game.getBoard(), game.getTurnoAtual());
+        if (move.isEmpty()) {
+            EndGameResult result = endGameEvaluator.evaluate(game.getBoard(), game.getTurnoAtual());
+            game.setStatus(result.status());
+            game.setVencedor(result.vencedor());
+            if (result.status() == GameStatus.EM_ANDAMENTO) {
+                throw new IllegalMoveException("A IA não encontrou um lance legal para esta posição");
+            }
+            return game;
+        }
+
+        return move(id, move.get().from(), move.get().to(), null);
     }
 
     /** Simula o en passant em uma cópia do tabuleiro e verifica se o próprio rei ficaria em xeque. */

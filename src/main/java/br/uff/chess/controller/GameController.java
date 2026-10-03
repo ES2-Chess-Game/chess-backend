@@ -46,6 +46,11 @@ public class GameController {
         return GameDTO.from(game);
     }
 
+    @PostMapping("/{id}/ia")
+    public GameDTO jogarComIa(@PathVariable String id) {
+        return GameDTO.from(gameService.playAiMove(id));
+    }
+
     @ExceptionHandler(IllegalMoveException.class)
     public ResponseEntity<Map<String, String>> handleIllegalMove(IllegalMoveException e) {
         return ResponseEntity.badRequest().body(Map.of("erro", e.getMessage()));
