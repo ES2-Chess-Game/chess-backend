@@ -14,6 +14,7 @@ import br.uff.chess.model.PieceType;
 import br.uff.chess.model.Position;
 import br.uff.chess.service.exceptions.GameNotFoundException;
 import br.uff.chess.service.exceptions.IllegalMoveException;
+import br.uff.chess.service.rules.SpecialMoves;
 import br.uff.chess.service.validator.BishopValidator;
 import br.uff.chess.service.validator.KingValidator;
 import br.uff.chess.service.validator.KnightValidator;
@@ -50,6 +51,14 @@ public class GameService {
     }
 
     public Game move(String id, Position from, Position to) {
+        return move(id, from, to, null);
+    }
+
+    /**
+     * @param promotion peça escolhida na promoção do peão (null = rainha); deve ser
+     *                  null em lances que não promovem.
+     */
+    public Game move(String id, Position from, Position to, PieceType promotion) {
         Game game = getGame(id);
 
         if (!Board.isInside(from) || !Board.isInside(to)) {
@@ -68,13 +77,21 @@ public class GameService {
             throw new IllegalMoveException("Peça inválida ou não é sua vez");
         }
 
-        PieceMoveValidator validator = validators.get(piece.type());
-        if (!validator.isValid(board, from, to, piece.color())) {
-            throw new IllegalMoveException("Movimento ilegal");
+        boolean castling = SpecialMoves.isCastlingAttempt(piece, from, to);
+        boolean enPassant = SpecialMoves.isEnPassant(game, piece, from, to);
+        if (castling) {
+            if (!SpecialMoves.canCastle(game, from, to)) {
+                throw new IllegalMoveException("Roque ilegal");
+            }
+        } else if (!enPassant) {
+            PieceMoveValidator validator = validators.get(piece.type());
+            if (!validator.isValid(board, from, to, piece.color())) {
+                throw new IllegalMoveException("Movimento ilegal");
+            }
         }
+        PieceType promoted = SpecialMoves.resolvePromotion(piece, to, promotion);
 
-        board.set(to.row(), to.col(), piece);
-        board.set(from.row(), from.col(), null);
+        SpecialMoves.apply(game, piece, from, to, castling, enPassant, promoted);
         game.alternarTurno();
         return game;
     }
