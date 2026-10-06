@@ -8,6 +8,7 @@ public class Game {
     private Position enPassantTarget;
     private Color turnoAtual;
     private GameStatus status;
+    private Color vencedor;
 
     public Game(String id, Board board, Color turnoAtual) {
         this.id = id;
@@ -47,6 +48,18 @@ public class Game {
 
     public void setStatus(GameStatus status) {
         this.status = status;
+    }
+
+    public Color getVencedor() {
+        return vencedor;
+    }
+
+    public void setVencedor(Color vencedor) {
+        this.vencedor = vencedor;
+    }
+
+    public boolean isFinalizada() {
+        return status == GameStatus.XEQUE_MATE || status == GameStatus.EMPATE;
     }
 
     public void alternarTurno() {
