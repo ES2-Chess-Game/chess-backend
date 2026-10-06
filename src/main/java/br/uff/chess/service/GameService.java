@@ -11,11 +11,13 @@ import br.uff.chess.model.Color;
 import br.uff.chess.model.Game;
 import br.uff.chess.model.GameStatus;
 import br.uff.chess.model.Piece;
+import br.uff.chess.model.PieceType;
 import br.uff.chess.model.Position;
 import br.uff.chess.service.exceptions.GameNotFoundException;
 import br.uff.chess.service.exceptions.IllegalMoveException;
 import br.uff.chess.service.rules.CheckDetector;
 import br.uff.chess.service.rules.DefaultLegalMoveGenerator;
+import br.uff.chess.service.rules.SpecialMoves;
 
 @Service
 public class GameService {
@@ -45,6 +47,14 @@ public class GameService {
     }
 
     public Game move(String id, Position from, Position to) {
+        return move(id, from, to, null);
+    }
+
+    /**
+     * @param promotion peça escolhida na promoção do peão (null = rainha); deve ser
+     *                  null em lances que não promovem.
+     */
+    public Game move(String id, Position from, Position to, PieceType promotion) {
         Game game = getGame(id);
 
         if (!Board.isInside(from) || !Board.isInside(to)) {
@@ -63,15 +73,39 @@ public class GameService {
             throw new IllegalMoveException("Peça inválida ou não é sua vez");
         }
 
-        if (!legalMoveGenerator.isLegalMove(board, from, to, piece.color())) {
+        boolean castling = SpecialMoves.isCastlingAttempt(piece, from, to);
+        boolean enPassant = SpecialMoves.isEnPassant(game, piece, from, to);
+        if (castling) {
+            if (!SpecialMoves.canCastle(game, from, to)) {
+                throw new IllegalMoveException("Roque ilegal");
+            }
+        } else if (enPassant) {
+            if (enPassantExposesKing(board, piece, from, to)) {
+                throw new IllegalMoveException("Movimento ilegal ou deixa o próprio rei em xeque");
+            }
+        } else if (!legalMoveGenerator.isLegalMove(board, from, to, piece.color())) {
             throw new IllegalMoveException("Movimento ilegal ou deixa o próprio rei em xeque");
         }
+        PieceType promoted = SpecialMoves.resolvePromotion(piece, to, promotion);
 
-        board.set(to.row(), to.col(), piece);
-        board.set(from.row(), from.col(), null);
+        SpecialMoves.apply(game, piece, from, to, castling, enPassant, promoted);
         game.alternarTurno();
         game.setStatus(checkDetector.isKingInCheck(board, game.getTurnoAtual())
                 ? GameStatus.XEQUE : GameStatus.EM_ANDAMENTO);
         return game;
+    }
+
+    /** Simula o en passant em uma cópia do tabuleiro e verifica se o próprio rei ficaria em xeque. */
+    private boolean enPassantExposesKing(Board board, Piece pawn, Position from, Position to) {
+        Board simulated = new Board();
+        for (int row = 0; row < Board.SIZE; row++) {
+            for (int col = 0; col < Board.SIZE; col++) {
+                simulated.set(row, col, board.get(row, col));
+            }
+        }
+        simulated.set(from.row(), to.col(), null); // peão capturado fica ao lado da origem
+        simulated.set(from, null);
+        simulated.set(to, pawn);
+        return checkDetector.isKingInCheck(simulated, pawn.color());
     }
 }

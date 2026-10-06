@@ -41,7 +41,7 @@ public class GameController {
 
     @PostMapping("/{id}/lances")
     public GameDTO mover(@PathVariable String id, @RequestBody MoveRequest req) {
-        Game game = gameService.move(id, req.origem(), req.destino());
+        Game game = gameService.move(id, req.origem(), req.destino(), req.promocao());
         return GameDTO.from(game);
     }
 

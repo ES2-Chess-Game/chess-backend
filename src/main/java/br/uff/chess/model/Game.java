@@ -4,6 +4,8 @@ public class Game {
 
     private final String id;
     private final Board board;
+    private final CastlingRights castlingRights = new CastlingRights();
+    private Position enPassantTarget;
     private Color turnoAtual;
     private GameStatus status;
 
@@ -24,6 +26,19 @@ public class Game {
 
     public Color getTurnoAtual() {
         return turnoAtual;
+    }
+
+    public CastlingRights getCastlingRights() {
+        return castlingRights;
+    }
+
+    /** Casa "pulada" por um peão que acabou de avançar duas casas; null se não houver. */
+    public Position getEnPassantTarget() {
+        return enPassantTarget;
+    }
+
+    public void setEnPassantTarget(Position enPassantTarget) {
+        this.enPassantTarget = enPassantTarget;
     }
 
     public GameStatus getStatus() {
