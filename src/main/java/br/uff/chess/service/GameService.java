@@ -9,32 +9,28 @@ import org.springframework.stereotype.Service;
 import br.uff.chess.model.Board;
 import br.uff.chess.model.Color;
 import br.uff.chess.model.Game;
+import br.uff.chess.model.GameStatus;
 import br.uff.chess.model.Piece;
 import br.uff.chess.model.PieceType;
 import br.uff.chess.model.Position;
 import br.uff.chess.service.exceptions.GameNotFoundException;
 import br.uff.chess.service.exceptions.IllegalMoveException;
+import br.uff.chess.service.rules.CheckDetector;
+import br.uff.chess.service.rules.DefaultLegalMoveGenerator;
 import br.uff.chess.service.rules.SpecialMoves;
-import br.uff.chess.service.validator.BishopValidator;
-import br.uff.chess.service.validator.KingValidator;
-import br.uff.chess.service.validator.KnightValidator;
-import br.uff.chess.service.validator.PawnValidator;
-import br.uff.chess.service.validator.PieceMoveValidator;
-import br.uff.chess.service.validator.QueenValidator;
-import br.uff.chess.service.validator.RookValidator;
 
 @Service
 public class GameService {
 
     private final Map<String, Game> games = new ConcurrentHashMap<>();
 
-    private final Map<PieceType, PieceMoveValidator> validators = Map.of(
-            PieceType.TORRE, new RookValidator(),
-            PieceType.CAVALO, new KnightValidator(),
-            PieceType.BISPO, new BishopValidator(),
-            PieceType.RAINHA, new QueenValidator(),
-            PieceType.REI, new KingValidator(),
-            PieceType.PEAO, new PawnValidator());
+    private final CheckDetector checkDetector;
+    private final DefaultLegalMoveGenerator legalMoveGenerator;
+
+    public GameService(CheckDetector checkDetector, DefaultLegalMoveGenerator legalMoveGenerator) {
+        this.checkDetector = checkDetector;
+        this.legalMoveGenerator = legalMoveGenerator;
+    }
 
     public Game createGame() {
         Game game = new Game(UUID.randomUUID().toString(), new Board(), Color.BRANCA);
@@ -83,16 +79,33 @@ public class GameService {
             if (!SpecialMoves.canCastle(game, from, to)) {
                 throw new IllegalMoveException("Roque ilegal");
             }
-        } else if (!enPassant) {
-            PieceMoveValidator validator = validators.get(piece.type());
-            if (!validator.isValid(board, from, to, piece.color())) {
-                throw new IllegalMoveException("Movimento ilegal");
+        } else if (enPassant) {
+            if (enPassantExposesKing(board, piece, from, to)) {
+                throw new IllegalMoveException("Movimento ilegal ou deixa o próprio rei em xeque");
             }
+        } else if (!legalMoveGenerator.isLegalMove(board, from, to, piece.color())) {
+            throw new IllegalMoveException("Movimento ilegal ou deixa o próprio rei em xeque");
         }
         PieceType promoted = SpecialMoves.resolvePromotion(piece, to, promotion);
 
         SpecialMoves.apply(game, piece, from, to, castling, enPassant, promoted);
         game.alternarTurno();
+        game.setStatus(checkDetector.isKingInCheck(board, game.getTurnoAtual())
+                ? GameStatus.XEQUE : GameStatus.EM_ANDAMENTO);
         return game;
+    }
+
+    /** Simula o en passant em uma cópia do tabuleiro e verifica se o próprio rei ficaria em xeque. */
+    private boolean enPassantExposesKing(Board board, Piece pawn, Position from, Position to) {
+        Board simulated = new Board();
+        for (int row = 0; row < Board.SIZE; row++) {
+            for (int col = 0; col < Board.SIZE; col++) {
+                simulated.set(row, col, board.get(row, col));
+            }
+        }
+        simulated.set(from.row(), to.col(), null); // peão capturado fica ao lado da origem
+        simulated.set(from, null);
+        simulated.set(to, pawn);
+        return checkDetector.isKingInCheck(simulated, pawn.color());
     }
 }

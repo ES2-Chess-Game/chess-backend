@@ -22,6 +22,8 @@ import br.uff.chess.model.Piece;
 import br.uff.chess.model.PieceType;
 import br.uff.chess.model.Position;
 import br.uff.chess.service.exceptions.IllegalMoveException;
+import br.uff.chess.service.rules.DefaultCheckDetector;
+import br.uff.chess.service.rules.DefaultLegalMoveGenerator;
 
 class SpecialMovesTest {
 
@@ -31,7 +33,8 @@ class SpecialMovesTest {
 
     @BeforeEach
     void setUp() {
-        service = new GameService();
+        DefaultCheckDetector detector = new DefaultCheckDetector();
+        service = new GameService(detector, new DefaultLegalMoveGenerator(detector));
         game = service.createGame();
         board = game.getBoard();
     }
@@ -206,6 +209,27 @@ class SpecialMovesTest {
         put("e5", PEAO, BRANCA);
         put("d5", PEAO, PRETA); // peão preto já estava em d5: nenhum avanço duplo no lance anterior
         assertThrows(IllegalMoveException.class, () -> move("e5", "d6"));
+    }
+
+    @Test
+    void enPassantRejectedWhenItExposesOwnKing() {
+        for (int row = 0; row < Board.SIZE; row++) {
+            for (int col = 0; col < Board.SIZE; col++) {
+                board.set(row, col, null);
+            }
+        }
+        put("a5", REI, BRANCA);
+        put("b5", PEAO, BRANCA);
+        put("h2", PEAO, BRANCA);
+        put("e8", REI, PRETA);
+        put("c7", PEAO, PRETA);
+        put("h5", TORRE, PRETA); // alinhada com rei e peões na quinta fileira
+        move("h2", "h3");
+        move("c7", "c5");
+        // b5xc6 remove b5 e c5 da fileira e abriria o xeque da torre em h5
+        assertThrows(IllegalMoveException.class, () -> move("b5", "c6"));
+        assertPiece("b5", PEAO, BRANCA);
+        assertPiece("c5", PEAO, PRETA);
     }
 
     // --------------------------------------------------------------- promoção
