@@ -4,8 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import java.util.Optional;
-
 import org.junit.jupiter.api.Test;
 
 import br.uff.chess.model.Color;
@@ -14,22 +12,30 @@ import br.uff.chess.model.GameStatus;
 import br.uff.chess.model.Position;
 import br.uff.chess.service.exceptions.GameOverException;
 import br.uff.chess.service.rules.CheckDetector;
+import br.uff.chess.service.rules.DefaultCheckDetector;
+import br.uff.chess.service.rules.DefaultLegalMoveGenerator;
 import br.uff.chess.service.rules.LegalMoveGenerator;
 
 /**
- * Testa a integração do fim de jogo em GameService. Como a implementação real
- * de CheckDetector/LegalMoveGenerator ainda não existe no projeto (é de outro
- * integrante), os cenários de xeque-mate/afogamento aqui usam stubs para
- * simular o resultado da dependência — não reimplementam detecção de xeque.
+ * Testa a integração do fim de jogo em GameService. Os cenários de
+ * xeque-mate/afogamento usam stubs de CheckDetector/LegalMoveGenerator no
+ * avaliador de fim de jogo, enquanto a validação do lance usa a implementação real.
  */
 class GameServiceEndGameTest {
 
     private static final Position ORIGEM_PEAO_BRANCO = new Position(6, 0);
     private static final Position DESTINO_PEAO_BRANCO = new Position(5, 0);
 
+    private static final DefaultLegalMoveGenerator REAL_GENERATOR =
+            new DefaultLegalMoveGenerator(new DefaultCheckDetector());
+
+    private static GameService realService() {
+        return new GameService(new DefaultCheckDetector(), REAL_GENERATOR);
+    }
+
     @Test
     void bloqueiaLanceAposXequeMate() {
-        GameService service = new GameService(Optional.empty(), Optional.empty());
+        GameService service = realService();
         Game game = service.createGame();
         game.setStatus(GameStatus.XEQUE_MATE);
 
@@ -39,7 +45,7 @@ class GameServiceEndGameTest {
 
     @Test
     void bloqueiaLanceAposEmpatePorAfogamento() {
-        GameService service = new GameService(Optional.empty(), Optional.empty());
+        GameService service = realService();
         Game game = service.createGame();
         game.setStatus(GameStatus.EMPATE);
 
@@ -48,8 +54,8 @@ class GameServiceEndGameTest {
     }
 
     @Test
-    void semDependenciaDeXequeDisponivelPartidaSeguePartidaEmAndamento() {
-        GameService service = new GameService(Optional.empty(), Optional.empty());
+    void lanceInicialComDeteccaoRealMantemPartidaEmAndamento() {
+        GameService service = realService();
         Game game = service.createGame();
 
         Game atualizado = service.move(game.getId(), ORIGEM_PEAO_BRANCO, DESTINO_PEAO_BRANCO);
@@ -62,7 +68,7 @@ class GameServiceEndGameTest {
     void marcaXequeMateEDefineVencedorQuandoDependenciaIndicaFimDeJogo() {
         CheckDetector sempreEmXeque = (board, color) -> true;
         LegalMoveGenerator semLanceLegal = (board, color) -> false;
-        GameService service = new GameService(Optional.of(sempreEmXeque), Optional.of(semLanceLegal));
+        GameService service = new GameService(new EndGameEvaluator(sempreEmXeque, semLanceLegal), REAL_GENERATOR);
         Game game = service.createGame();
 
         Game atualizado = service.move(game.getId(), ORIGEM_PEAO_BRANCO, DESTINO_PEAO_BRANCO);
@@ -75,7 +81,7 @@ class GameServiceEndGameTest {
     void marcaEmpateQuandoDependenciaIndicaAfogamento() {
         CheckDetector nuncaEmXeque = (board, color) -> false;
         LegalMoveGenerator semLanceLegal = (board, color) -> false;
-        GameService service = new GameService(Optional.of(nuncaEmXeque), Optional.of(semLanceLegal));
+        GameService service = new GameService(new EndGameEvaluator(nuncaEmXeque, semLanceLegal), REAL_GENERATOR);
         Game game = service.createGame();
 
         Game atualizado = service.move(game.getId(), ORIGEM_PEAO_BRANCO, DESTINO_PEAO_BRANCO);
@@ -88,7 +94,7 @@ class GameServiceEndGameTest {
     void jogadorEmXequeComSaidaLegalMantemPartidaComoXeque() {
         CheckDetector emXeque = (board, color) -> true;
         LegalMoveGenerator haLanceLegal = (board, color) -> true;
-        GameService service = new GameService(Optional.of(emXeque), Optional.of(haLanceLegal));
+        GameService service = new GameService(new EndGameEvaluator(emXeque, haLanceLegal), REAL_GENERATOR);
         Game game = service.createGame();
 
         Game atualizado = service.move(game.getId(), ORIGEM_PEAO_BRANCO, DESTINO_PEAO_BRANCO);

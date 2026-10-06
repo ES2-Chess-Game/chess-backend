@@ -1,55 +1,39 @@
 package br.uff.chess.service;
 
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import br.uff.chess.model.Board;
 import br.uff.chess.model.Color;
 import br.uff.chess.model.Game;
 import br.uff.chess.model.Piece;
-import br.uff.chess.model.PieceType;
 import br.uff.chess.model.Position;
 import br.uff.chess.service.exceptions.GameNotFoundException;
 import br.uff.chess.service.exceptions.GameOverException;
 import br.uff.chess.service.exceptions.IllegalMoveException;
 import br.uff.chess.service.rules.CheckDetector;
-import br.uff.chess.service.rules.LegalMoveGenerator;
-import br.uff.chess.service.validator.BishopValidator;
-import br.uff.chess.service.validator.KingValidator;
-import br.uff.chess.service.validator.KnightValidator;
-import br.uff.chess.service.validator.PawnValidator;
-import br.uff.chess.service.validator.PieceMoveValidator;
-import br.uff.chess.service.validator.QueenValidator;
-import br.uff.chess.service.validator.RookValidator;
+import br.uff.chess.service.rules.DefaultLegalMoveGenerator;
 
 @Service
 public class GameService {
 
     private final Map<String, Game> games = new ConcurrentHashMap<>();
 
-    private final Map<PieceType, PieceMoveValidator> validators = Map.of(
-            PieceType.TORRE, new RookValidator(),
-            PieceType.CAVALO, new KnightValidator(),
-            PieceType.BISPO, new BishopValidator(),
-            PieceType.RAINHA, new QueenValidator(),
-            PieceType.REI, new KingValidator(),
-            PieceType.PEAO, new PawnValidator());
+    private final EndGameEvaluator endGameEvaluator;
+    private final DefaultLegalMoveGenerator legalMoveGenerator;
 
-    /**
-     * Só fica presente quando implementações reais de {@link CheckDetector} e
-     * {@link LegalMoveGenerator} existirem como beans (funcionalidade de xeque
-     * e legalidade, em desenvolvimento por outro integrante). Até lá, a
-     * avaliação de fim de jogo é ignorada e o status permanece EM_ANDAMENTO.
-     */
-    private final Optional<EndGameEvaluator> endGameEvaluator;
+    @Autowired
+    public GameService(CheckDetector checkDetector, DefaultLegalMoveGenerator legalMoveGenerator) {
+        this(new EndGameEvaluator(checkDetector, legalMoveGenerator), legalMoveGenerator);
+    }
 
-    public GameService(Optional<CheckDetector> checkDetector, Optional<LegalMoveGenerator> legalMoveGenerator) {
-        this.endGameEvaluator = checkDetector
-                .flatMap(cd -> legalMoveGenerator.map(lmg -> new EndGameEvaluator(cd, lmg)));
+    GameService(EndGameEvaluator endGameEvaluator, DefaultLegalMoveGenerator legalMoveGenerator) {
+        this.endGameEvaluator = endGameEvaluator;
+        this.legalMoveGenerator = legalMoveGenerator;
     }
 
     public Game createGame() {
@@ -89,23 +73,19 @@ public class GameService {
             throw new IllegalMoveException("Peça inválida ou não é sua vez");
         }
 
-        PieceMoveValidator validator = validators.get(piece.type());
-        if (!validator.isValid(board, from, to, piece.color())) {
-            throw new IllegalMoveException("Movimento ilegal");
+        if (!legalMoveGenerator.isLegalMove(board, from, to, piece.color())) {
+            throw new IllegalMoveException("Movimento ilegal ou deixa o próprio rei em xeque");
         }
 
         board.set(to.row(), to.col(), piece);
         board.set(from.row(), from.col(), null);
         game.alternarTurno();
 
-        endGameEvaluator.ifPresent(evaluator -> {
-            EndGameResult result = evaluator.evaluate(board, game.getTurnoAtual());
-            game.setStatus(result.status());
-            if (result.vencedor() != null) {
-                game.setVencedor(result.vencedor());
-            }
-        });
-
+        EndGameResult result = endGameEvaluator.evaluate(board, game.getTurnoAtual());
+        game.setStatus(result.status());
+        if (result.vencedor() != null) {
+            game.setVencedor(result.vencedor());
+        }
         return game;
     }
 }
