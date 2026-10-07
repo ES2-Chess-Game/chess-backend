@@ -4,6 +4,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import br.uff.chess.model.Board;
@@ -12,8 +13,12 @@ import br.uff.chess.model.Game;
 import br.uff.chess.model.Piece;
 import br.uff.chess.model.Position;
 import br.uff.chess.service.exceptions.GameNotFoundException;
+import br.uff.chess.service.exceptions.GameOverException;
 import br.uff.chess.service.exceptions.IllegalMoveException;
 import br.uff.chess.model.GameStatus;
+import br.uff.chess.service.rules.CheckDetector;
+import br.uff.chess.service.rules.DefaultLegalMoveGenerator;
+import br.uff.chess.service.rules.SpecialMoves;
 
 @Service
 public class GameService {
@@ -43,8 +48,20 @@ public class GameService {
     }
 
     public Game move(String id, Position from, Position to) {
+        return move(id, from, to, null);
+    }
+
+    /**
+     * @param promotion peça escolhida na promoção do peão (null = rainha); deve ser
+     *                  null em lances que não promovem.
+     */
+    public Game move(String id, Position from, Position to, PieceType promotion) {
         Game game = getGame(id);
         validateOngoingGame(game);
+
+        if (game.isFinalizada()) {
+            throw new GameOverException("A partida já foi encerrada");
+        }
 
         if (!Board.isInside(from) || !Board.isInside(to)) {
             throw new IllegalMoveException("Posição fora do tabuleiro");
@@ -65,6 +82,7 @@ public class GameService {
         if (!legalMoveService.isLegalMove(board, from, to, piece.color())) {
             throw new IllegalMoveException("Movimento ilegal");
         }
+        PieceType promoted = SpecialMoves.resolvePromotion(piece, to, promotion);
 
         applyMove(game, from, to);
         return game;
