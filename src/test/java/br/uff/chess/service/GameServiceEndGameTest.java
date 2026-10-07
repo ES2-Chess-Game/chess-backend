@@ -68,7 +68,7 @@ class GameServiceEndGameTest {
     void marcaXequeMateEDefineVencedorQuandoDependenciaIndicaFimDeJogo() {
         CheckDetector sempreEmXeque = (board, color) -> true;
         LegalMoveGenerator semLanceLegal = (board, color) -> false;
-        GameService service = new GameService(new EndGameEvaluator(sempreEmXeque, semLanceLegal), REAL_GENERATOR);
+        GameService service = new GameService(new EndGameEvaluator(sempreEmXeque, semLanceLegal), REAL_GENERATOR, sempreEmXeque);
         Game game = service.createGame();
 
         Game atualizado = service.move(game.getId(), ORIGEM_PEAO_BRANCO, DESTINO_PEAO_BRANCO);
@@ -81,7 +81,7 @@ class GameServiceEndGameTest {
     void marcaEmpateQuandoDependenciaIndicaAfogamento() {
         CheckDetector nuncaEmXeque = (board, color) -> false;
         LegalMoveGenerator semLanceLegal = (board, color) -> false;
-        GameService service = new GameService(new EndGameEvaluator(nuncaEmXeque, semLanceLegal), REAL_GENERATOR);
+        GameService service = new GameService(new EndGameEvaluator(nuncaEmXeque, semLanceLegal), REAL_GENERATOR, nuncaEmXeque);
         Game game = service.createGame();
 
         Game atualizado = service.move(game.getId(), ORIGEM_PEAO_BRANCO, DESTINO_PEAO_BRANCO);
@@ -94,7 +94,7 @@ class GameServiceEndGameTest {
     void jogadorEmXequeComSaidaLegalMantemPartidaComoXeque() {
         CheckDetector emXeque = (board, color) -> true;
         LegalMoveGenerator haLanceLegal = (board, color) -> true;
-        GameService service = new GameService(new EndGameEvaluator(emXeque, haLanceLegal), REAL_GENERATOR);
+        GameService service = new GameService(new EndGameEvaluator(emXeque, haLanceLegal), REAL_GENERATOR, emXeque);
         Game game = service.createGame();
 
         Game atualizado = service.move(game.getId(), ORIGEM_PEAO_BRANCO, DESTINO_PEAO_BRANCO);

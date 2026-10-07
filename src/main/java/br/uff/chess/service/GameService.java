@@ -27,15 +27,18 @@ public class GameService {
 
     private final EndGameEvaluator endGameEvaluator;
     private final DefaultLegalMoveGenerator legalMoveGenerator;
+    private final CheckDetector checkDetector;
 
     @Autowired
     public GameService(CheckDetector checkDetector, DefaultLegalMoveGenerator legalMoveGenerator) {
-        this(new EndGameEvaluator(checkDetector, legalMoveGenerator), legalMoveGenerator);
+        this(new EndGameEvaluator(checkDetector, legalMoveGenerator), legalMoveGenerator, checkDetector);
     }
 
-    GameService(EndGameEvaluator endGameEvaluator, DefaultLegalMoveGenerator legalMoveGenerator) {
+    GameService(EndGameEvaluator endGameEvaluator, DefaultLegalMoveGenerator legalMoveGenerator,
+                CheckDetector checkDetector) {
         this.endGameEvaluator = endGameEvaluator;
         this.legalMoveGenerator = legalMoveGenerator;
+        this.checkDetector = checkDetector;
     }
 
     public Game createGame() {
