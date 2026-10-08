@@ -31,7 +31,7 @@ public class SecurityConfig {
                         .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/cadastro", "/api/auth/login").permitAll()
-                        .requestMatchers("/api/auth/**").authenticated()
+                        .requestMatchers("/api/auth/**", "/api/perfil").authenticated()
                         .requestMatchers("/api/**").permitAll()
                         .anyRequest().authenticated());
         return http.build();
