@@ -72,3 +72,6 @@ O código não implementa roque, en passant ou promoção de peão. Também não
 ## Dependências principais
 
 O `build.gradle` configura Java 25, Spring Boot 4.1.0 e Gradle Wrapper. As dependências ativas incluem Spring WebMVC e Spring Security; não há banco de dados configurado.
+## Créditos
+
+As imagens dos avatares (`src/main/resources/static/avatares/`) são as peças de xadrez de Colin M.L. Burnett ([Cburnett](https://commons.wikimedia.org/wiki/User:Cburnett)), do Wikimedia Commons, sob a licença [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/).
