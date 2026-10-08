@@ -36,7 +36,12 @@ public class GameService {
             PieceType.PEAO, new PawnValidator());
 
     public Game createGame() {
+        return createGame(null);
+    }
+
+    public Game createGame(Long userId) {
         Game game = new Game(UUID.randomUUID().toString(), new Board(), Color.BRANCA);
+        game.setUserId(userId);
         games.put(game.getId(), game);
         return game;
     }
