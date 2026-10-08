@@ -4,36 +4,55 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import br.uff.chess.model.Board;
 import br.uff.chess.model.Color;
 import br.uff.chess.model.Game;
+import br.uff.chess.model.GameStatus;
 import br.uff.chess.model.Piece;
 import br.uff.chess.model.PieceType;
 import br.uff.chess.model.Position;
 import br.uff.chess.service.exceptions.GameNotFoundException;
+import br.uff.chess.service.exceptions.GameOverException;
 import br.uff.chess.service.exceptions.IllegalMoveException;
-import br.uff.chess.service.validator.BishopValidator;
-import br.uff.chess.service.validator.KingValidator;
-import br.uff.chess.service.validator.KnightValidator;
-import br.uff.chess.service.validator.PawnValidator;
-import br.uff.chess.service.validator.PieceMoveValidator;
-import br.uff.chess.service.validator.QueenValidator;
-import br.uff.chess.service.validator.RookValidator;
+import br.uff.chess.service.rules.CheckDetector;
+import br.uff.chess.service.rules.DefaultLegalMoveGenerator;
+import br.uff.chess.service.rules.SpecialMoves;
 
 @Service
 public class GameService {
 
     private final Map<String, Game> games = new ConcurrentHashMap<>();
 
-    private final Map<PieceType, PieceMoveValidator> validators = Map.of(
-            PieceType.TORRE, new RookValidator(),
-            PieceType.CAVALO, new KnightValidator(),
-            PieceType.BISPO, new BishopValidator(),
-            PieceType.RAINHA, new QueenValidator(),
-            PieceType.REI, new KingValidator(),
-            PieceType.PEAO, new PawnValidator());
+    private final EndGameEvaluator endGameEvaluator;
+    private final DefaultLegalMoveGenerator legalMoveGenerator;
+    private final CheckDetector checkDetector;
+    private final MinimaxAI minimaxAI;
+
+    @Autowired
+    public GameService(CheckDetector checkDetector, DefaultLegalMoveGenerator legalMoveGenerator,
+            MinimaxAI minimaxAI) {
+        this(new EndGameEvaluator(checkDetector, legalMoveGenerator), legalMoveGenerator, checkDetector, minimaxAI);
+    }
+
+    public GameService(CheckDetector checkDetector, DefaultLegalMoveGenerator legalMoveGenerator) {
+        this(new EndGameEvaluator(checkDetector, legalMoveGenerator), legalMoveGenerator, checkDetector);
+    }
+
+    GameService(EndGameEvaluator endGameEvaluator, DefaultLegalMoveGenerator legalMoveGenerator,
+            CheckDetector checkDetector) {
+        this(endGameEvaluator, legalMoveGenerator, checkDetector, new MinimaxAI(new LegalMoveService()));
+    }
+
+    private GameService(EndGameEvaluator endGameEvaluator, DefaultLegalMoveGenerator legalMoveGenerator,
+            CheckDetector checkDetector, MinimaxAI minimaxAI) {
+        this.endGameEvaluator = endGameEvaluator;
+        this.legalMoveGenerator = legalMoveGenerator;
+        this.checkDetector = checkDetector;
+        this.minimaxAI = minimaxAI;
+    }
 
     public Game createGame() {
         return createGame(null);
@@ -55,7 +74,19 @@ public class GameService {
     }
 
     public Game move(String id, Position from, Position to) {
+        return move(id, from, to, null);
+    }
+
+    /**
+     * @param promotion peça escolhida na promoção do peão (null = rainha); deve ser
+     *                  null em lances que não promovem.
+     */
+    public Game move(String id, Position from, Position to, PieceType promotion) {
         Game game = getGame(id);
+
+        if (game.isFinalizada()) {
+            throw new GameOverException("A partida já foi encerrada");
+        }
 
         if (!Board.isInside(from) || !Board.isInside(to)) {
             throw new IllegalMoveException("Posição fora do tabuleiro");
@@ -73,14 +104,63 @@ public class GameService {
             throw new IllegalMoveException("Peça inválida ou não é sua vez");
         }
 
-        PieceMoveValidator validator = validators.get(piece.type());
-        if (!validator.isValid(board, from, to, piece.color())) {
-            throw new IllegalMoveException("Movimento ilegal");
+        boolean castling = SpecialMoves.isCastlingAttempt(piece, from, to);
+        boolean enPassant = SpecialMoves.isEnPassant(game, piece, from, to);
+        if (castling) {
+            if (!SpecialMoves.canCastle(game, from, to)) {
+                throw new IllegalMoveException("Roque ilegal");
+            }
+        } else if (enPassant) {
+            if (enPassantExposesKing(board, piece, from, to)) {
+                throw new IllegalMoveException("Movimento ilegal ou deixa o próprio rei em xeque");
+            }
+        } else if (!legalMoveGenerator.isLegalMove(board, from, to, piece.color())) {
+            throw new IllegalMoveException("Movimento ilegal ou deixa o próprio rei em xeque");
+        }
+        PieceType promoted = SpecialMoves.resolvePromotion(piece, to, promotion);
+
+        SpecialMoves.apply(game, piece, from, to, castling, enPassant, promoted);
+        game.alternarTurno();
+
+        EndGameResult result = endGameEvaluator.evaluate(board, game.getTurnoAtual());
+        game.setStatus(result.status());
+        if (result.vencedor() != null) {
+            game.setVencedor(result.vencedor());
+        }
+        return game;
+    }
+
+    public Game playAiMove(String id) {
+        Game game = getGame(id);
+        if (game.isFinalizada()) {
+            throw new GameOverException("A partida já foi encerrada");
         }
 
-        board.set(to.row(), to.col(), piece);
-        board.set(from.row(), from.col(), null);
-        game.alternarTurno();
-        return game;
+        var move = minimaxAI.chooseMove(game.getBoard(), game.getTurnoAtual());
+        if (move.isEmpty()) {
+            EndGameResult result = endGameEvaluator.evaluate(game.getBoard(), game.getTurnoAtual());
+            game.setStatus(result.status());
+            game.setVencedor(result.vencedor());
+            if (result.status() == GameStatus.EM_ANDAMENTO) {
+                throw new IllegalMoveException("A IA não encontrou um lance legal para esta posição");
+            }
+            return game;
+        }
+
+        return move(id, move.get().from(), move.get().to(), null);
+    }
+
+    /** Simula o en passant em uma cópia do tabuleiro e verifica se o próprio rei ficaria em xeque. */
+    private boolean enPassantExposesKing(Board board, Piece pawn, Position from, Position to) {
+        Board simulated = new Board();
+        for (int row = 0; row < Board.SIZE; row++) {
+            for (int col = 0; col < Board.SIZE; col++) {
+                simulated.set(row, col, board.get(row, col));
+            }
+        }
+        simulated.set(from.row(), to.col(), null); // peão capturado fica ao lado da origem
+        simulated.set(from, null);
+        simulated.set(to, pawn);
+        return checkDetector.isKingInCheck(simulated, pawn.color());
     }
 }

@@ -17,6 +17,16 @@ public class Board {
         setupInitialPosition();
     }
 
+    public Board(Board other) {
+        for (int row = 0; row < SIZE; row++) {
+            System.arraycopy(other.squares[row], 0, squares[row], 0, SIZE);
+        }
+    }
+
+    public Board copy() {
+        return new Board(this);
+    }
+
     private void setupInitialPosition() {
         PieceType[] backRow = {TORRE, CAVALO, BISPO, RAINHA, REI, BISPO, CAVALO, TORRE};
         for (int c = 0; c < SIZE; c++) {

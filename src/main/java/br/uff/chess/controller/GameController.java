@@ -18,6 +18,7 @@ import br.uff.chess.dto.MoveRequest;
 import br.uff.chess.model.Game;
 import br.uff.chess.service.GameService;
 import br.uff.chess.service.exceptions.GameNotFoundException;
+import br.uff.chess.service.exceptions.GameOverException;
 import br.uff.chess.service.exceptions.IllegalMoveException;
 
 @RestController
@@ -43,8 +44,13 @@ public class GameController {
 
     @PostMapping("/{id}/lances")
     public GameDTO mover(@PathVariable String id, @RequestBody MoveRequest req) {
-        Game game = gameService.move(id, req.origem(), req.destino());
+        Game game = gameService.move(id, req.origem(), req.destino(), req.promocao());
         return GameDTO.from(game);
+    }
+
+    @PostMapping("/{id}/ia")
+    public GameDTO jogarComIa(@PathVariable String id) {
+        return GameDTO.from(gameService.playAiMove(id));
     }
 
     @ExceptionHandler(IllegalMoveException.class)
@@ -55,5 +61,10 @@ public class GameController {
     @ExceptionHandler(GameNotFoundException.class)
     public ResponseEntity<Map<String, String>> handleNotFound(GameNotFoundException e) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("erro", e.getMessage()));
+    }
+
+    @ExceptionHandler(GameOverException.class)
+    public ResponseEntity<Map<String, String>> handleGameOver(GameOverException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("erro", e.getMessage()));
     }
 }
