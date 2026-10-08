@@ -30,6 +30,7 @@ public class SecurityConfig {
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/avatares/**").permitAll()
                         .requestMatchers("/api/auth/cadastro", "/api/auth/login").permitAll()
                         .requestMatchers("/api/auth/**", "/api/perfil").authenticated()
                         .requestMatchers("/api/**").permitAll()
