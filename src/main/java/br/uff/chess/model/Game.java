@@ -9,6 +9,7 @@ public class Game {
     private Color turnoAtual;
     private GameStatus status;
     private Color vencedor;
+    private Long userId;
 
     public Game(String id, Board board, Color turnoAtual) {
         this.id = id;
@@ -44,6 +45,14 @@ public class Game {
 
     public GameStatus getStatus() {
         return status;
+    }
+
+    public Long getUserId() {
+        return userId;
+    }
+
+    public void setUserId(Long userId) {
+        this.userId = userId;
     }
 
     public void setStatus(GameStatus status) {

@@ -6,7 +6,8 @@ import br.uff.chess.model.Game;
 import br.uff.chess.model.GameStatus;
 import br.uff.chess.model.Piece;
 
-public record GameDTO(String id, PieceDTO[][] tabuleiro, Color turnoAtual, GameStatus status, Color vencedor) {
+public record GameDTO(String id, PieceDTO[][] tabuleiro, Color turnoAtual, GameStatus status, Color vencedor,
+        Long userId) {
 
     public static GameDTO from(Game game) {
         Board board = game.getBoard();
@@ -17,6 +18,7 @@ public record GameDTO(String id, PieceDTO[][] tabuleiro, Color turnoAtual, GameS
                 tabuleiro[row][col] = piece == null ? null : PieceDTO.from(piece);
             }
         }
-        return new GameDTO(game.getId(), tabuleiro, game.getTurnoAtual(), game.getStatus(), game.getVencedor());
+        return new GameDTO(game.getId(), tabuleiro, game.getTurnoAtual(), game.getStatus(), game.getVencedor(),
+                game.getUserId());
     }
 }
