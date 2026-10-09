@@ -1,5 +1,7 @@
 package br.uff.chess.config;
 
+import java.time.Clock;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
@@ -32,9 +34,15 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/cadastro", "/api/auth/login").permitAll()
                         .requestMatchers("/api/auth/**").authenticated()
+                        .requestMatchers("/api/partidas/em-andamento").authenticated()
                         .requestMatchers("/api/**").permitAll()
                         .anyRequest().authenticated());
         return http.build();
+    }
+
+    @Bean
+    public Clock clock() {
+        return Clock.systemUTC();
     }
 
     @Bean
