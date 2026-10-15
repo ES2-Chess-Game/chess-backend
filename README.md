@@ -16,13 +16,19 @@ Na raiz deste repositório, inicie a aplicação:
 
 A configuração não define outra porta; com o padrão do Spring Boot, a API fica em `http://localhost:8080/api/partidas`.
 
-Para executar os testes existentes:
+Para executar os testes:
 
 ```powershell
 .\gradlew.bat test
 ```
 
-O teste atual verifica o carregamento do contexto Spring (`contextLoads`).
+Os testes de unidade cobrem modelo, validadores de peça, regras (xeque, roque, en passant, promoção), fim de jogo, IA e os services de usuário. Os testes com `@SpringBootTest` + MockMvc cobrem os endpoints.
+
+### Cobertura
+
+O `test` gera o relatório do JaCoCo em `build/reports/jacoco/test/html/index.html` (e o XML em `build/reports/jacoco/test/jacocoTestReport.xml`). No CI, o relatório fica disponível como artefato `jacoco-report` de cada execução.
+
+Cobertura atual (unidade + integração): **96,9% das linhas** e **96,2% dos branches**.
 
 ## Arquitetura
 
