@@ -9,8 +9,10 @@ import static br.uff.chess.model.PieceType.REI;
 import static br.uff.chess.model.PieceType.RAINHA;
 import static br.uff.chess.model.PieceType.TORRE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -166,6 +168,34 @@ class SpecialMovesTest {
         move("e1", "c1");
         assertPiece("c1", REI, BRANCA);
         assertPiece("d1", TORRE, BRANCA);
+    }
+
+    @Test
+    void queenSideCastlingBlockedWhenOnlyB1IsOccupied() {
+        clear("c1", "d1"); // cavalo continua em b1: o rei não passa por lá, mas a torre sim
+        assertThrows(IllegalMoveException.class, () -> move("e1", "c1"));
+    }
+
+    @Test
+    void castlingDeniedWhenRookIsMissing() {
+        clear("f1", "g1", "h1");
+        assertThrows(IllegalMoveException.class, () -> move("e1", "g1"));
+    }
+
+    @Test
+    void castlingDeniedWhenKingIsNotOnItsHomeSquare() {
+        clear("e1", "f2", "g2");
+        put("e2", REI, BRANCA);
+        assertThrows(IllegalMoveException.class, () -> move("e2", "g2"));
+    }
+
+    @Test
+    void capturingRookOnItsCornerRevokesOpponentCastling() {
+        clear("g7", "g8", "f8", "b2");
+        put("b2", BISPO, BRANCA); // diagonal livre até h8
+        move("b2", "h8");
+        assertFalse(game.getCastlingRights().canKingSide(PRETA));
+        assertTrue(game.getCastlingRights().canQueenSide(PRETA));
     }
 
     // ------------------------------------------------------------- en passant
