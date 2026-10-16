@@ -8,6 +8,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import br.uff.chess.service.exceptions.AvatarNotFoundException;
 import br.uff.chess.service.exceptions.InvalidCredentialsException;
 import br.uff.chess.service.exceptions.UserAlreadyExistsException;
 
@@ -22,6 +23,11 @@ public class ApiExceptionHandler {
     @ExceptionHandler(InvalidCredentialsException.class)
     public ResponseEntity<Map<String, String>> handleCredentials(InvalidCredentialsException e) {
         return erro(HttpStatus.UNAUTHORIZED, e.getMessage());
+    }
+
+    @ExceptionHandler(AvatarNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handleAvatarNotFound(AvatarNotFoundException e) {
+        return erro(HttpStatus.NOT_FOUND, e.getMessage());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

@@ -14,12 +14,12 @@ import br.uff.chess.repository.AvatarRepository;
 public class AvatarService implements ApplicationRunner {
 
     private static final List<Avatar> INITIAL_CATALOG = List.of(
-            new Avatar("Rei", "king.png"),
-            new Avatar("Rainha", "queen.png"),
-            new Avatar("Torre", "rook.png"),
-            new Avatar("Bispo", "bishop.png"),
-            new Avatar("Cavalo", "knight.png"),
-            new Avatar("Peão", "pawn.png"));
+            new Avatar("Rei", "king.svg"),
+            new Avatar("Rainha", "queen.svg"),
+            new Avatar("Torre", "rook.svg"),
+            new Avatar("Bispo", "bishop.svg"),
+            new Avatar("Cavalo", "knight.svg"),
+            new Avatar("Peão", "pawn.svg"));
 
     private final AvatarRepository avatarRepository;
 
