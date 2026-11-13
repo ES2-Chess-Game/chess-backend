@@ -8,13 +8,15 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import br.uff.chess.dto.GameDTO;
 import br.uff.chess.dto.MoveRequest;
 import br.uff.chess.model.Game;
+import br.uff.chess.service.AiDifficulty;
 import br.uff.chess.service.GameService;
 import br.uff.chess.service.exceptions.GameNotFoundException;
 import br.uff.chess.service.exceptions.IllegalMoveException;
@@ -46,8 +48,10 @@ public class GameController {
     }
 
     @PostMapping("/{id}/ia")
-    public GameDTO jogarComIa(@PathVariable String id) {
-        return GameDTO.from(gameService.playAiMove(id));
+    public GameDTO jogarComIa(
+            @PathVariable String id,
+            @RequestParam(defaultValue = "ADVANCED") AiDifficulty difficulty) {
+        return GameDTO.from(gameService.playAiMove(id, difficulty));
     }
 
     @ExceptionHandler(IllegalMoveException.class)

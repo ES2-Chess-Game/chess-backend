@@ -71,11 +71,15 @@ public class GameService {
     }
 
     public Game playAiMove(String id) {
+        return playAiMove(id, AiDifficulty.ADVANCED);
+    }
+
+    public Game playAiMove(String id, AiDifficulty difficulty) {
         Game game = getGame(id);
         validateOngoingGame(game);
 
         Color turn = game.getTurnoAtual();
-        var move = minimaxAI.chooseMove(game.getBoard(), turn);
+        var move = minimaxAI.chooseMove(game.getBoard(), turn, difficulty);
         if (move.isEmpty()) {
             updateStatus(game);
             return game;

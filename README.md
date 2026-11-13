@@ -45,7 +45,7 @@ Para validar um lance, o serviço escolhe o validador associado ao tipo da peça
 | `POST` | `/api/partidas` | Cria partida no tabuleiro inicial, com as brancas no primeiro turno. |
 | `GET` | `/api/partidas/{id}` | Retorna o estado da partida ou `404` se o ID não existir. |
 | `POST` | `/api/partidas/{id}/lances` | Valida e aplica um movimento, retornando o estado atualizado. |
-| `POST` | `/api/partidas/{id}/ia` | A IA escolhe e aplica um lance para o lado da vez usando minimax com profundidade 3. |
+| `POST` | `/api/partidas/{id}/ia?difficulty=EASY\|MEDIUM\|ADVANCED` | A IA escolhe e aplica um lance para o lado da vez usando minimax alpha-beta. As profundidades são 1 (fácil), 2 (médio) e 3 (avançado); se omitido, usa `ADVANCED`. |
 
 O corpo de um lance contém coordenadas inteiras de linha e coluna, entre `0` e `7`:
 
@@ -64,7 +64,7 @@ A linha `0` representa o topo da matriz e a coluna `0` corresponde à coluna `a`
 
 Há validadores para rei, rainha, torre, bispo, cavalo e peão. O peão pode avançar uma casa, avançar duas casas da posição inicial com o caminho livre e capturar na diagonal uma peça adversária. As peças de linha e diagonal não atravessam casas ocupadas; cavalos e reis podem capturar peças adversárias se o destino não tiver peça própria. A API não permite capturar o rei adversário, e todo lance deve deixar o rei do jogador fora de xeque.
 
-O código não implementa roque, en passant ou promoção de peão. A IA é uma implementação base com avaliação material e busca limitada, sem heurísticas posicionais ou histórico. Não há contas, histórico persistido ou banco de dados configurado.
+O código não implementa roque, en passant ou promoção de peão. A IA é uma implementação base com avaliação material e busca alpha-beta limitada à profundidade da dificuldade escolhida, sem heurísticas posicionais ou histórico. Não há contas, histórico persistido ou banco de dados configurado.
 
 ## Segurança e integração com o frontend
 
