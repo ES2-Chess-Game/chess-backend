@@ -1,0 +1,8 @@
+spring:
+  datasource:
+    url: ${CHESS_DB_URL}
+    username: ${CHESS_DB_USER}
+    password: ${CHESS_DB_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: update
