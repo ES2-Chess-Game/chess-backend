@@ -34,23 +34,34 @@ public class GameController {
     @PostMapping
     public GameDTO criar(Authentication auth) {
         Long userId = auth != null && auth.getPrincipal() instanceof Long id ? id : null;
-        return GameDTO.from(gameService.createGame(userId));
+        return dto(gameService.createGame(userId));
+    }
+
+    @GetMapping("/em-andamento")
+    public ResponseEntity<GameDTO> emAndamento(Authentication auth) {
+        return gameService.findInProgressByUser((Long) auth.getPrincipal())
+                .map(game -> ResponseEntity.ok(dto(game)))
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @GetMapping("/{id}")
     public GameDTO obter(@PathVariable String id) {
-        return GameDTO.from(gameService.getGame(id));
+        return dto(gameService.getGame(id));
     }
 
     @PostMapping("/{id}/lances")
     public GameDTO mover(@PathVariable String id, @RequestBody MoveRequest req) {
         Game game = gameService.move(id, req.origem(), req.destino(), req.promocao());
-        return GameDTO.from(game);
+        return dto(game);
     }
 
     @PostMapping("/{id}/ia")
     public GameDTO jogarComIa(@PathVariable String id) {
-        return GameDTO.from(gameService.playAiMove(id));
+        return dto(gameService.playAiMove(id));
+    }
+
+    private GameDTO dto(Game game) {
+        return GameDTO.from(game, gameService.agora());
     }
 
     @ExceptionHandler(IllegalMoveException.class)
