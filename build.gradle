@@ -27,6 +27,9 @@ dependencies {
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
+// Ensure build directory avoids paths with accents like 'Área de Trabalho' on Windows
+layout.buildDirectory = file("${System.getProperty('java.io.tmpdir')}/gradle-build/${rootProject.name}")
+
 tasks.named('test') {
 	useJUnitPlatform()
 }

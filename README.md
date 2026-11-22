@@ -46,6 +46,7 @@ Para validar um lance, o serviço escolhe o validador associado ao tipo da peça
 | `GET` | `/api/partidas/{id}` | Retorna o estado da partida ou `404` se o ID não existir. |
 | `POST` | `/api/partidas/{id}/lances` | Valida e aplica um movimento, retornando o estado atualizado. |
 | `POST` | `/api/partidas/{id}/ia?difficulty=EASY\|MEDIUM\|ADVANCED` | A IA escolhe e aplica um lance para o lado da vez usando minimax alpha-beta. As profundidades são 1 (fácil), 2 (médio) e 3 (avançado); se omitido, usa `ADVANCED`. |
+| `GET` | `/api/partidas/{id}/movimentos?linha=L&coluna=C` | Retorna as posições de destino válidas para a peça na casa (linha, coluna), ou todos os lances legais se omitidos os parâmetros. |
 
 O corpo de um lance contém coordenadas inteiras de linha e coluna, entre `0` e `7`. Para escolher uma peça ao promover, envie `promocao` com `RAINHA`, `TORRE`, `BISPO` ou `CAVALO`; se omitido, o peão vira rainha:
 

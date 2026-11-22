@@ -1,5 +1,6 @@
 package br.uff.chess.service;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -104,6 +105,28 @@ public class GameService {
 
         applyMove(game, move.get().from(), move.get().to(), move.get().promotion());
         return game;
+    }
+
+    public List<Position> getPossibleMoves(String id, Position from) {
+        Game game = getGame(id);
+        if (!Board.isInside(from)) {
+            return List.of();
+        }
+        Piece piece = game.getBoard().get(from.row(), from.col());
+        if (piece == null || piece.color() != game.getTurnoAtual()) {
+            return List.of();
+        }
+        return legalMoveService.getLegalMoves(game.getBoard(), game.getTurnoAtual())
+                .stream()
+                .filter(move -> move.from().equals(from))
+                .map(LegalMove::to)
+                .distinct()
+                .toList();
+    }
+
+    public List<LegalMove> getAllLegalMoves(String id) {
+        Game game = getGame(id);
+        return legalMoveService.getLegalMoves(game.getBoard(), game.getTurnoAtual());
     }
 
     private void applyMove(Game game, Position from, Position to, PieceType promotion) {
