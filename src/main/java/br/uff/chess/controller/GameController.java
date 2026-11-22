@@ -2,6 +2,7 @@ package br.uff.chess.controller;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,18 +21,23 @@ import br.uff.chess.dto.GameDTO;
 import br.uff.chess.dto.LegalMoveResponseDTO;
 import br.uff.chess.dto.MoveRequest;
 import br.uff.chess.dto.PossibleMoveDTO;
+import br.uff.chess.model.Color;
 import br.uff.chess.model.Game;
+import br.uff.chess.model.GameSettings;
 import br.uff.chess.model.Position;
 import br.uff.chess.service.AiDifficulty;
 import br.uff.chess.service.GameService;
 import br.uff.chess.service.exceptions.GameNotFoundException;
 import br.uff.chess.service.exceptions.GameOverException;
 import br.uff.chess.service.exceptions.IllegalMoveException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 
 @RestController
 @RequestMapping("/api/partidas")
 public class GameController {
 
+    private static final String VISITOR = "chessVisitor";
     private final GameService gameService;
 
     public GameController(GameService gameService) {
@@ -39,9 +45,47 @@ public class GameController {
     }
 
     @PostMapping
-    public GameDTO criar(Authentication auth) {
-        Long userId = auth != null && auth.getPrincipal() instanceof Long id ? id : null;
-        return GameDTO.from(gameService.createGame(userId));
+    public GameDTO criar(Authentication auth, HttpServletRequest request,
+            @RequestBody(required = false) GameSettings settings) {
+        HttpSession session = request.getSession();
+        String visitor = (String) session.getAttribute(VISITOR);
+        if (visitor == null) {
+            visitor = UUID.randomUUID().toString();
+            session.setAttribute(VISITOR, visitor);
+        }
+        return GameDTO.from(gameService.createGame(userId(auth), visitor, settings));
+    }
+
+    @GetMapping("/em-andamento")
+    public ResponseEntity<GameDTO> emAndamento(Authentication auth, HttpServletRequest request) {
+        return gameService.inProgress(userId(auth), visitorId(request))
+                .map(game -> ResponseEntity.ok(GameDTO.from(game)))
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/historico")
+    public List<GameDTO> historico(Authentication auth, HttpServletRequest request) {
+        return gameService.history(userId(auth), visitorId(request)).stream().map(GameDTO::from).toList();
+    }
+
+    @GetMapping("/historico/{id}")
+    public GameDTO detalhe(@PathVariable String id, Authentication auth, HttpServletRequest request) {
+        return GameDTO.from(gameService.historyDetail(id, userId(auth), visitorId(request)));
+    }
+
+    @PostMapping("/{id}/desistencia")
+    public GameDTO desistir(@PathVariable String id, @RequestParam Color cor, Authentication auth,
+            HttpServletRequest request) {
+        return GameDTO.from(gameService.resign(id, cor, userId(auth), visitorId(request)));
+    }
+
+    private Long userId(Authentication auth) {
+        return auth != null && auth.getPrincipal() instanceof Long id ? id : null;
+    }
+
+    private String visitorId(HttpServletRequest request) {
+        HttpSession session = request.getSession(false);
+        return session == null ? null : (String) session.getAttribute(VISITOR);
     }
 
     @GetMapping("/{id}")
@@ -57,7 +101,7 @@ public class GameController {
 
     @GetMapping("/recursos")
     public Map<String, Object> recursos() {
-        return Map.of("niveisIa", AiDifficulty.values(), "sugestoesDeLances", true);
+        return Map.of("niveisIa", AiDifficulty.values(), "sugestoesDeLances", true, "partidasPersistentes", true);
     }
 
     @PostMapping("/{id}/ia")

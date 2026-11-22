@@ -3,19 +3,25 @@ package br.uff.chess.service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import br.uff.chess.model.Board;
 import br.uff.chess.model.Color;
 import br.uff.chess.model.Game;
 import br.uff.chess.model.GameStatus;
+import br.uff.chess.model.GameSettings;
 import br.uff.chess.model.Piece;
 import br.uff.chess.model.PieceType;
 import br.uff.chess.model.Position;
+import br.uff.chess.model.PlayedMove;
+import br.uff.chess.repository.GameStore;
 import br.uff.chess.service.exceptions.GameNotFoundException;
 import br.uff.chess.service.exceptions.GameOverException;
 import br.uff.chess.service.exceptions.IllegalMoveException;
@@ -27,6 +33,7 @@ import br.uff.chess.service.rules.SpecialMoves;
 public class GameService {
 
     private final Map<String, Game> games = new ConcurrentHashMap<>();
+    private final GameStore store;
 
     private final EndGameEvaluator endGameEvaluator;
     private final DefaultLegalMoveGenerator legalMoveGenerator;
@@ -35,8 +42,14 @@ public class GameService {
 
     @Autowired
     public GameService(CheckDetector checkDetector, DefaultLegalMoveGenerator legalMoveGenerator,
+            MinimaxAI minimaxAI, GameStore store) {
+        this(new EndGameEvaluator(checkDetector, legalMoveGenerator), legalMoveGenerator, checkDetector, minimaxAI,
+                store);
+    }
+
+    public GameService(CheckDetector checkDetector, DefaultLegalMoveGenerator legalMoveGenerator,
             MinimaxAI minimaxAI) {
-        this(new EndGameEvaluator(checkDetector, legalMoveGenerator), legalMoveGenerator, checkDetector, minimaxAI);
+        this(checkDetector, legalMoveGenerator, minimaxAI, null);
     }
 
     public GameService(CheckDetector checkDetector, DefaultLegalMoveGenerator legalMoveGenerator) {
@@ -45,55 +58,137 @@ public class GameService {
 
     GameService(EndGameEvaluator endGameEvaluator, DefaultLegalMoveGenerator legalMoveGenerator,
             CheckDetector checkDetector) {
-        this(endGameEvaluator, legalMoveGenerator, checkDetector, new MinimaxAI(new LegalMoveService()));
+        this(endGameEvaluator, legalMoveGenerator, checkDetector, new MinimaxAI(new LegalMoveService()), null);
     }
 
     private GameService(EndGameEvaluator endGameEvaluator, DefaultLegalMoveGenerator legalMoveGenerator,
-            CheckDetector checkDetector, MinimaxAI minimaxAI) {
+            CheckDetector checkDetector, MinimaxAI minimaxAI, GameStore store) {
+        this.store = store;
         this.endGameEvaluator = endGameEvaluator;
         this.legalMoveGenerator = legalMoveGenerator;
         this.checkDetector = checkDetector;
         this.minimaxAI = minimaxAI;
     }
 
+    @Transactional
     public Game createGame() {
         return createGame(null);
     }
 
+    @Transactional
     public Game createGame(Long userId) {
+        return createGame(userId, null, null);
+    }
+
+    @Transactional
+    public Game createGame(Long userId, String visitorId, GameSettings settings) {
         Game game = new Game(UUID.randomUUID().toString(), new Board(), Color.BRANCA);
         game.setUserId(userId);
-        games.put(game.getId(), game);
+        game.configure(settings == null ? new GameSettings(null, null, null, null, null) : settings,
+                visitorId, System.currentTimeMillis());
+        if (store == null) {
+            games.put(game.getId(), game);
+        } else {
+            store.insert(game);
+        }
         return game;
     }
 
+    @Transactional
     public Game getGame(String id) {
-        Game game = games.get(id);
+        Game game = load(id, true);
+        synchronized (game) {
+            if (game.expire(System.currentTimeMillis())) {
+                save(game);
+            }
+            return game;
+        }
+    }
+
+    private Game load(String id, boolean lock) {
+        Game game = store == null ? games.get(id) : store.find(id, lock).orElse(null);
         if (game == null) {
             throw new GameNotFoundException(id);
         }
         return game;
     }
 
+    private void save(Game game) {
+        if (store != null) store.update(game);
+    }
+
+    private void requireActive(Game game) {
+        if (game.expire(System.currentTimeMillis())) {
+            save(game);
+        }
+        if (game.isFinalizada()) {
+            throw new GameOverException("A partida já foi encerrada");
+        }
+    }
+
+    private boolean owns(Game game, Long userId, String visitorId) {
+        if (game.getUserId() != null) {
+            return Objects.equals(game.getUserId(), userId);
+        }
+        return visitorId != null && visitorId.equals(game.getVisitorId());
+    }
+
+    @Transactional
+    public Optional<Game> inProgress(Long userId, String visitorId) {
+        if (store == null) return Optional.empty();
+        for (Game candidate : store.owned(userId, visitorId, false)) {
+            Game game = getGame(candidate.getId());
+            if (!game.isFinalizada()) return Optional.of(game);
+        }
+        return Optional.empty();
+    }
+
+    @Transactional
+    public List<Game> history(Long userId, String visitorId) {
+        if (store == null) return List.of();
+        for (Game active : store.owned(userId, visitorId, false)) {
+            getGame(active.getId());
+        }
+        return store.owned(userId, visitorId, true);
+    }
+
+    @Transactional
+    public Game historyDetail(String id, Long userId, String visitorId) {
+        Game game = getGame(id);
+        if (!game.isFinalizada() || !owns(game, userId, visitorId)) {
+            throw new GameNotFoundException(id);
+        }
+        return game;
+    }
+
+    @Transactional
+    public Game resign(String id, Color loser, Long userId, String visitorId) {
+        Game game = load(id, true);
+        if (!owns(game, userId, visitorId)) throw new GameNotFoundException(id);
+        if (game.expire(System.currentTimeMillis())) {
+            save(game);
+        } else if (!game.isFinalizada()) {
+            game.end(GameStatus.DESISTENCIA, Game.opposite(loser), System.currentTimeMillis());
+            save(game);
+        }
+        return game;
+    }
+
+    @Transactional(noRollbackFor = GameOverException.class)
     public Game move(String id, Position from, Position to) {
         return move(id, from, to, null);
     }
 
-    /**
-     * @param promotion peça escolhida na promoção do peão (null = rainha); deve ser
-     *                  null em lances que não promovem.
-     */
+    @Transactional(noRollbackFor = GameOverException.class)
     public Game move(String id, Position from, Position to, PieceType promotion) {
-        Game game = getGame(id);
+        Game game = load(id, true);
         synchronized (game) {
             return move(game, from, to, promotion);
         }
     }
 
     private Game move(Game game, Position from, Position to, PieceType promotion) {
-        if (game.isFinalizada()) {
-            throw new GameOverException("A partida já foi encerrada");
-        }
+        requireActive(game);
 
         if (!Board.isInside(from) || !Board.isInside(to)) {
             throw new IllegalMoveException("Posição fora do tabuleiro");
@@ -118,36 +213,44 @@ public class GameService {
         }
         PieceType promoted = SpecialMoves.resolvePromotion(piece, to, promotion);
 
+        Piece captured = enPassant ? board.get(from.row(), to.col()) : board.get(to);
         SpecialMoves.apply(game, piece, from, to, castling, enPassant, promoted);
-        game.alternarTurno();
+        game.recordMove(new PlayedMove(from, to, piece.color(), piece.type(), promoted,
+                captured == null ? null : captured.type()));
+        long now = System.currentTimeMillis();
+        game.advanceTurn(now);
 
         EndGameResult result = endGameEvaluator.evaluate(board, game.getTurnoAtual());
-        game.setStatus(result.status());
-        if (result.vencedor() != null) {
-            game.setVencedor(result.vencedor());
+        if (result.status() == GameStatus.XEQUE_MATE || result.status() == GameStatus.EMPATE) {
+            game.end(result.status(), result.vencedor(), now);
+        } else {
+            game.setStatus(result.status());
+            if (result.vencedor() != null) game.setVencedor(result.vencedor());
         }
+        save(game);
         return game;
     }
 
+    @Transactional(noRollbackFor = GameOverException.class)
     public Game playAiMove(String id) {
         return playAiMove(id, AiDifficulty.ADVANCED);
     }
 
+    @Transactional(noRollbackFor = GameOverException.class)
     public Game playAiMove(String id, AiDifficulty difficulty) {
-        Game game = getGame(id);
+        Game game = load(id, true);
         synchronized (game) {
-            if (game.isFinalizada()) {
-                throw new GameOverException("A partida já foi encerrada");
-            }
-
-            var move = minimaxAI.chooseMove(game.getBoard(), game.getTurnoAtual(), difficulty);
+            requireActive(game);
+            AiDifficulty configured = game.getSettings().dificuldade();
+            var move = minimaxAI.chooseMove(game.getBoard(), game.getTurnoAtual(),
+                    configured == null ? difficulty : configured);
             if (move.isEmpty()) {
                 EndGameResult result = endGameEvaluator.evaluate(game.getBoard(), game.getTurnoAtual());
-                game.setStatus(result.status());
-                game.setVencedor(result.vencedor());
-                if (result.status() == GameStatus.EM_ANDAMENTO) {
+                if (result.status() == GameStatus.EM_ANDAMENTO || result.status() == GameStatus.XEQUE) {
                     throw new IllegalMoveException("A IA não encontrou um lance legal para esta posição");
                 }
+                game.end(result.status(), result.vencedor(), System.currentTimeMillis());
+                save(game);
                 return game;
             }
 
@@ -155,6 +258,7 @@ public class GameService {
         }
     }
 
+    @Transactional
     public List<LegalMove> getAllLegalMoves(String id) {
         Game game = getGame(id);
         synchronized (game) {
@@ -174,6 +278,7 @@ public class GameService {
         }
     }
 
+    @Transactional
     public List<Position> getPossibleMoves(String id, Position from) {
         if (!Board.isInside(from)) {
             throw new IllegalMoveException("Posição fora do tabuleiro");
