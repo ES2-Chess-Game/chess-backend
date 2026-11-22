@@ -37,7 +37,7 @@ public class MinimaxAI {
         int beta = Integer.MAX_VALUE;
         for (LegalMove move : moves) {
             Board nextBoard = board.copy();
-            LegalMoveService.applyMove(nextBoard, move.from(), move.to());
+            LegalMoveService.applyMove(nextBoard, move.from(), move.to(), move.promotion());
             int score = minimax(nextBoard, LegalMoveService.opponentOf(color), difficulty.searchDepth() - 1,
                     1, alpha, beta, color);
             if (score > bestScore) {
@@ -65,7 +65,7 @@ public class MinimaxAI {
         int bestScore = maximizing ? Integer.MIN_VALUE : Integer.MAX_VALUE;
         for (LegalMove move : moves) {
             Board nextBoard = board.copy();
-            LegalMoveService.applyMove(nextBoard, move.from(), move.to());
+            LegalMoveService.applyMove(nextBoard, move.from(), move.to(), move.promotion());
             int score = minimax(nextBoard, LegalMoveService.opponentOf(turn), depth - 1,
                     ply + 1, alpha, beta, perspective);
             if (maximizing) {

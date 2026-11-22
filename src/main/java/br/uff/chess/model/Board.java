@@ -12,6 +12,11 @@ public class Board {
     public static final int SIZE = 8;
 
     private final Piece[][] squares = new Piece[SIZE][SIZE];
+    private boolean whiteKingSideCastleAvailable = true;
+    private boolean whiteQueenSideCastleAvailable = true;
+    private boolean blackKingSideCastleAvailable = true;
+    private boolean blackQueenSideCastleAvailable = true;
+    private Position enPassantTarget;
 
     public Board() {
         setupInitialPosition();
@@ -21,6 +26,11 @@ public class Board {
         for (int row = 0; row < SIZE; row++) {
             System.arraycopy(other.squares[row], 0, squares[row], 0, SIZE);
         }
+        whiteKingSideCastleAvailable = other.whiteKingSideCastleAvailable;
+        whiteQueenSideCastleAvailable = other.whiteQueenSideCastleAvailable;
+        blackKingSideCastleAvailable = other.blackKingSideCastleAvailable;
+        blackQueenSideCastleAvailable = other.blackQueenSideCastleAvailable;
+        enPassantTarget = other.enPassantTarget;
     }
 
     public Board copy() {
@@ -51,6 +61,40 @@ public class Board {
 
     public void set(Position p, Piece piece) {
         squares[p.row()][p.col()] = piece;
+    }
+
+    public boolean canCastle(Color color, boolean kingSide) {
+        if (color == Color.BRANCA) {
+            return kingSide ? whiteKingSideCastleAvailable : whiteQueenSideCastleAvailable;
+        }
+        return kingSide ? blackKingSideCastleAvailable : blackQueenSideCastleAvailable;
+    }
+
+    public void revokeCastlingRights(Color color) {
+        revokeCastlingRight(color, true);
+        revokeCastlingRight(color, false);
+    }
+
+    public void revokeCastlingRight(Color color, boolean kingSide) {
+        if (color == Color.BRANCA) {
+            if (kingSide) {
+                whiteKingSideCastleAvailable = false;
+            } else {
+                whiteQueenSideCastleAvailable = false;
+            }
+        } else if (kingSide) {
+            blackKingSideCastleAvailable = false;
+        } else {
+            blackQueenSideCastleAvailable = false;
+        }
+    }
+
+    public Position getEnPassantTarget() {
+        return enPassantTarget;
+    }
+
+    public void setEnPassantTarget(Position enPassantTarget) {
+        this.enPassantTarget = enPassantTarget;
     }
 
     public static boolean isInside(int row, int col) {

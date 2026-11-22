@@ -3,13 +3,9 @@ package br.uff.chess.service.validator;
 import br.uff.chess.model.Board;
 import br.uff.chess.model.Color;
 import br.uff.chess.model.Piece;
+import br.uff.chess.model.PieceType;
 import br.uff.chess.model.Position;
 
-/**
- * 1 casa para frente (com a casa vazia), 2 casas na primeira jogada
- * (ambas vazias), captura na diagonal (1 casa, peça adversária).
- * Não implementa en passant nem promoção — fora do escopo atual.
- */
 public class PawnValidator implements PieceMoveValidator {
 
     @Override
@@ -23,7 +19,7 @@ public class PawnValidator implements PieceMoveValidator {
             return isValidForwardMove(board, from, to, direction, startRow, dRow);
         }
         if (Math.abs(dCol) == 1 && dRow == direction) {
-            return isValidCapture(board, to, color);
+            return isValidCapture(board, from, to, color);
         }
         return false;
     }
@@ -42,8 +38,15 @@ public class PawnValidator implements PieceMoveValidator {
         return false;
     }
 
-    private boolean isValidCapture(Board board, Position to, Color color) {
+    private boolean isValidCapture(Board board, Position from, Position to, Color color) {
         Piece target = board.get(to.row(), to.col());
-        return target != null && target.color() != color;
+        if (target != null) {
+            return target.color() != color;
+        }
+
+        Piece adjacentPawn = board.get(from.row(), to.col());
+        return to.equals(board.getEnPassantTarget()) && adjacentPawn != null &&
+                adjacentPawn.type() == PieceType.PEAO &&
+                adjacentPawn.color() != color;
     }
 }

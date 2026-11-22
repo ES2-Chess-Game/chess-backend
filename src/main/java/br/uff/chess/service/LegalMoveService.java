@@ -23,6 +23,9 @@ import br.uff.chess.service.validator.RookValidator;
 @Service
 public class LegalMoveService {
 
+    private static final List<PieceType> PROMOTION_TYPES = List.of(
+            PieceType.RAINHA, PieceType.TORRE, PieceType.BISPO, PieceType.CAVALO);
+
     private final Map<PieceType, PieceMoveValidator> validators = new EnumMap<>(PieceType.class);
 
     public LegalMoveService() {
@@ -45,9 +48,15 @@ public class LegalMoveService {
             return false;
         }
 
-        PieceMoveValidator validator = validators.get(piece.type());
-        if (!validator.isValid(board, from, to, color)) {
-            return false;
+        if (isCastlingMove(piece, from, to)) {
+            if (!isLegalCastle(board, from, to, color)) {
+                return false;
+            }
+        } else {
+            PieceMoveValidator validator = validators.get(piece.type());
+            if (!validator.isValid(board, from, to, color)) {
+                return false;
+            }
         }
 
         Board nextBoard = board.copy();
@@ -68,7 +77,14 @@ public class LegalMoveService {
                     for (int targetCol = 0; targetCol < Board.SIZE; targetCol++) {
                         Position to = new Position(targetRow, targetCol);
                         if (isLegalMove(board, from, to, color)) {
-                            moves.add(new LegalMove(from, to));
+                            if (piece.type() == PieceType.PEAO &&
+                                    (targetRow == 0 || targetRow == Board.SIZE - 1)) {
+                                for (PieceType promotion : PROMOTION_TYPES) {
+                                    moves.add(new LegalMove(from, to, promotion));
+                                }
+                            } else {
+                                moves.add(new LegalMove(from, to));
+                            }
                         }
                     }
                 }
@@ -104,8 +120,97 @@ public class LegalMoveService {
     }
 
     public static void applyMove(Board board, Position from, Position to) {
-        board.set(to, board.get(from));
+        applyMove(board, from, to, null);
+    }
+
+    public static void applyMove(Board board, Position from, Position to, PieceType promotion) {
+        Piece movingPiece = board.get(from);
+        Piece capturedPiece = board.get(to);
+        boolean enPassantCapture = movingPiece.type() == PieceType.PEAO &&
+                from.col() != to.col() && capturedPiece == null;
+        boolean castling = isCastlingMove(movingPiece, from, to);
+
+        if (movingPiece.type() == PieceType.REI) {
+            board.revokeCastlingRights(movingPiece.color());
+        } else if (movingPiece.type() == PieceType.TORRE) {
+            revokeRookRight(board, movingPiece.color(), from);
+        }
+        if (capturedPiece != null && capturedPiece.type() == PieceType.TORRE) {
+            revokeRookRight(board, capturedPiece.color(), to);
+        }
+
+        if (enPassantCapture) {
+            board.set(from.row(), to.col(), null);
+        }
+        if (castling) {
+            int rookFromCol = to.col() == 6 ? 7 : 0;
+            int rookToCol = to.col() == 6 ? 5 : 3;
+            board.set(to.row(), rookToCol, board.get(to.row(), rookFromCol));
+            board.set(to.row(), rookFromCol, null);
+        }
+
+        Piece movedPiece = movingPiece;
+        if (movingPiece.type() == PieceType.PEAO && (to.row() == 0 || to.row() == Board.SIZE - 1)) {
+            movedPiece = new Piece(promotion == null ? PieceType.RAINHA : promotion, movingPiece.color());
+        }
+
+        board.setEnPassantTarget(null);
+        if (movingPiece.type() == PieceType.PEAO && Math.abs(to.row() - from.row()) == 2) {
+            board.setEnPassantTarget(new Position((from.row() + to.row()) / 2, from.col()));
+        }
+
+        board.set(to, movedPiece);
         board.set(from, null);
+    }
+
+    private boolean isLegalCastle(Board board, Position from, Position to, Color color) {
+        int homeRow = color == Color.BRANCA ? Board.SIZE - 1 : 0;
+        if (from.row() != homeRow || from.col() != 4 || to.row() != homeRow ||
+                (to.col() != 2 && to.col() != 6)) {
+            return false;
+        }
+
+        boolean kingSide = to.col() == 6;
+        int rookCol = kingSide ? 7 : 0;
+        Piece rook = board.get(homeRow, rookCol);
+        if (!board.canCastle(color, kingSide) || rook == null ||
+                rook.type() != PieceType.TORRE || rook.color() != color) {
+            return false;
+        }
+
+        int firstCol = kingSide ? 5 : 1;
+        int lastCol = kingSide ? 6 : 3;
+        for (int col = firstCol; col <= lastCol; col++) {
+            if (board.get(homeRow, col) != null) {
+                return false;
+            }
+        }
+        if (isKingInCheck(board, color)) {
+            return false;
+        }
+
+        int transitCol = kingSide ? 5 : 3;
+        Board transitBoard = board.copy();
+        transitBoard.set(from, null);
+        transitBoard.set(homeRow, transitCol, new Piece(PieceType.REI, color));
+        return !isKingInCheck(transitBoard, color);
+    }
+
+    private static boolean isCastlingMove(Piece piece, Position from, Position to) {
+        return piece.type() == PieceType.REI && from.row() == to.row() &&
+                Math.abs(to.col() - from.col()) == 2;
+    }
+
+    private static void revokeRookRight(Board board, Color color, Position position) {
+        int homeRow = color == Color.BRANCA ? Board.SIZE - 1 : 0;
+        if (position.row() != homeRow) {
+            return;
+        }
+        if (position.col() == 0) {
+            board.revokeCastlingRight(color, false);
+        } else if (position.col() == Board.SIZE - 1) {
+            board.revokeCastlingRight(color, true);
+        }
     }
 
     private Position findKing(Board board, Color color) {

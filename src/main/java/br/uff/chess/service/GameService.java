@@ -10,6 +10,7 @@ import br.uff.chess.model.Board;
 import br.uff.chess.model.Color;
 import br.uff.chess.model.Game;
 import br.uff.chess.model.Piece;
+import br.uff.chess.model.PieceType;
 import br.uff.chess.model.Position;
 import br.uff.chess.service.exceptions.GameNotFoundException;
 import br.uff.chess.service.exceptions.IllegalMoveException;
@@ -43,6 +44,10 @@ public class GameService {
     }
 
     public Game move(String id, Position from, Position to) {
+        return move(id, from, to, null);
+    }
+
+    public Game move(String id, Position from, Position to, PieceType promotion) {
         Game game = getGame(id);
         validateOngoingGame(game);
 
@@ -62,11 +67,23 @@ public class GameService {
             throw new IllegalMoveException("Peça inválida ou não é sua vez");
         }
 
+        boolean promotionMove = piece.type() == PieceType.PEAO &&
+                (to.row() == 0 || to.row() == Board.SIZE - 1);
+        if (promotionMove) {
+            if (promotion == null) {
+                promotion = PieceType.RAINHA;
+            } else if (!isPromotionPiece(promotion)) {
+                throw new IllegalMoveException("A promoção deve ser para rainha, torre, bispo ou cavalo");
+            }
+        } else if (promotion != null) {
+            throw new IllegalMoveException("Promoção só pode ser escolhida ao promover um peão");
+        }
+
         if (!legalMoveService.isLegalMove(board, from, to, piece.color())) {
             throw new IllegalMoveException("Movimento ilegal");
         }
 
-        applyMove(game, from, to);
+        applyMove(game, from, to, promotion);
         return game;
     }
 
@@ -85,12 +102,12 @@ public class GameService {
             return game;
         }
 
-        applyMove(game, move.get().from(), move.get().to());
+        applyMove(game, move.get().from(), move.get().to(), move.get().promotion());
         return game;
     }
 
-    private void applyMove(Game game, Position from, Position to) {
-        LegalMoveService.applyMove(game.getBoard(), from, to);
+    private void applyMove(Game game, Position from, Position to, PieceType promotion) {
+        LegalMoveService.applyMove(game.getBoard(), from, to, promotion);
         game.alternarTurno();
         updateStatus(game);
     }
@@ -102,11 +119,20 @@ public class GameService {
                     ? GameStatus.XEQUE_MATE
                     : GameStatus.EMPATE;
             game.setStatus(status);
+        } else if (legalMoveService.isKingInCheck(game.getBoard(), game.getTurnoAtual())) {
+            game.setStatus(GameStatus.XEQUE);
+        } else {
+            game.setStatus(GameStatus.EM_ANDAMENTO);
         }
     }
 
+    private boolean isPromotionPiece(PieceType pieceType) {
+        return pieceType == PieceType.RAINHA || pieceType == PieceType.TORRE ||
+                pieceType == PieceType.BISPO || pieceType == PieceType.CAVALO;
+    }
+
     private void validateOngoingGame(Game game) {
-        if (game.getStatus() != GameStatus.EM_ANDAMENTO) {
+        if (game.getStatus() != GameStatus.EM_ANDAMENTO && game.getStatus() != GameStatus.XEQUE) {
             throw new IllegalMoveException("A partida já foi encerrada");
         }
     }

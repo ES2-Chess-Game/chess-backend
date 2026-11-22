@@ -4,10 +4,6 @@ import br.uff.chess.model.Board;
 import br.uff.chess.model.Color;
 import br.uff.chess.model.Position;
 
-/**
- * Uma casa em qualquer direção. Não verifica se o destino deixa o próprio
- * rei em xeque nem trata roque — fora do escopo atual (sem detecção de xeque).
- */
 public class KingValidator implements PieceMoveValidator {
 
     @Override

@@ -47,14 +47,15 @@ Para validar um lance, o serviço escolhe o validador associado ao tipo da peça
 | `POST` | `/api/partidas/{id}/lances` | Valida e aplica um movimento, retornando o estado atualizado. |
 | `POST` | `/api/partidas/{id}/ia?difficulty=EASY\|MEDIUM\|ADVANCED` | A IA escolhe e aplica um lance para o lado da vez usando minimax alpha-beta. As profundidades são 1 (fácil), 2 (médio) e 3 (avançado); se omitido, usa `ADVANCED`. |
 
-O corpo de um lance contém coordenadas inteiras de linha e coluna, entre `0` e `7`:
+O corpo de um lance contém coordenadas inteiras de linha e coluna, entre `0` e `7`. Para escolher uma peça ao promover, envie `promocao` com `RAINHA`, `TORRE`, `BISPO` ou `CAVALO`; se omitido, o peão vira rainha:
 
 ```json
 {
 	"origemLinha": 6,
 	"origemColuna": 4,
 	"destinoLinha": 4,
-	"destinoColuna": 4
+	"destinoColuna": 4,
+	"promocao": "RAINHA"
 }
 ```
 
@@ -62,9 +63,11 @@ A linha `0` representa o topo da matriz e a coluna `0` corresponde à coluna `a`
 
 ## Regras implementadas e limites
 
-Há validadores para rei, rainha, torre, bispo, cavalo e peão. O peão pode avançar uma casa, avançar duas casas da posição inicial com o caminho livre e capturar na diagonal uma peça adversária. As peças de linha e diagonal não atravessam casas ocupadas; cavalos e reis podem capturar peças adversárias se o destino não tiver peça própria. A API não permite capturar o rei adversário, e todo lance deve deixar o rei do jogador fora de xeque.
+Há validadores para rei, rainha, torre, bispo, cavalo e peão. O peão pode avançar uma casa, avançar duas casas da posição inicial com o caminho livre, capturar na diagonal e capturar en passant imediatamente após o avanço duplo adversário. Peões na última fileira são promovidos a rainha por padrão; a API também aceita torre, bispo ou cavalo.
 
-O código não implementa roque, en passant ou promoção de peão. A IA é uma implementação base com avaliação material e busca alpha-beta limitada à profundidade da dificuldade escolhida, sem heurísticas posicionais ou histórico. Não há contas, histórico persistido ou banco de dados configurado.
+O roque é permitido uma vez por lado enquanto rei e torre envolvidos não tiverem se movido, desde que o caminho esteja livre e o rei não atravesse nem termine em uma casa atacada. Todo lance deve deixar o próprio rei fora de xeque; a partida indica xeque, xeque-mate e empate por afogamento. A IA também considera os lances especiais.
+
+A IA é uma implementação base com avaliação material e busca alpha-beta limitada à profundidade da dificuldade escolhida, sem heurísticas posicionais ou histórico. Não há contas, histórico persistido ou banco de dados configurado.
 
 ## Segurança e integração com o frontend
 
