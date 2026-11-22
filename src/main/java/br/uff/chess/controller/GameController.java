@@ -1,5 +1,6 @@
 package br.uff.chess.controller;
 
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.http.HttpStatus;
@@ -11,11 +12,17 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import br.uff.chess.dto.GameDTO;
+import br.uff.chess.dto.LegalMoveResponseDTO;
 import br.uff.chess.dto.MoveRequest;
+import br.uff.chess.dto.PossibleMoveDTO;
 import br.uff.chess.model.Game;
+import br.uff.chess.model.Position;
+import br.uff.chess.service.AiDifficulty;
 import br.uff.chess.service.GameService;
 import br.uff.chess.service.exceptions.GameNotFoundException;
 import br.uff.chess.service.exceptions.GameOverException;
@@ -48,14 +55,42 @@ public class GameController {
         return GameDTO.from(game);
     }
 
+    @GetMapping("/recursos")
+    public Map<String, Object> recursos() {
+        return Map.of("niveisIa", AiDifficulty.values(), "sugestoesDeLances", true);
+    }
+
     @PostMapping("/{id}/ia")
-    public GameDTO jogarComIa(@PathVariable String id) {
-        return GameDTO.from(gameService.playAiMove(id));
+    public GameDTO jogarComIa(@PathVariable String id,
+            @RequestParam(defaultValue = "ADVANCED") AiDifficulty difficulty) {
+        return GameDTO.from(gameService.playAiMove(id, difficulty));
+    }
+
+    @GetMapping({"/{id}/movimentos", "/{id}/movimentos-possiveis"})
+    public ResponseEntity<?> obterMovimentosPossiveis(@PathVariable String id,
+            @RequestParam(required = false) Integer linha,
+            @RequestParam(required = false) Integer coluna) {
+        if ((linha == null) != (coluna == null)) {
+            throw new IllegalMoveException("Informe linha e coluna da peça");
+        }
+        if (linha != null) {
+            List<PossibleMoveDTO> moves = gameService.getPossibleMoves(id, new Position(linha, coluna))
+                    .stream().map(PossibleMoveDTO::from).toList();
+            return ResponseEntity.ok(moves);
+        }
+        List<LegalMoveResponseDTO> moves = gameService.getAllLegalMoves(id)
+                .stream().map(LegalMoveResponseDTO::from).toList();
+        return ResponseEntity.ok(moves);
     }
 
     @ExceptionHandler(IllegalMoveException.class)
     public ResponseEntity<Map<String, String>> handleIllegalMove(IllegalMoveException e) {
         return ResponseEntity.badRequest().body(Map.of("erro", e.getMessage()));
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<Map<String, String>> handleInvalidParameter(MethodArgumentTypeMismatchException e) {
+        return ResponseEntity.badRequest().body(Map.of("erro", "Parâmetro inválido: " + e.getName()));
     }
 
     @ExceptionHandler(GameNotFoundException.class)
