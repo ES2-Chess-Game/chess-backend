@@ -1,5 +1,7 @@
 package br.uff.chess.service;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -83,7 +85,12 @@ public class GameService {
      */
     public Game move(String id, Position from, Position to, PieceType promotion) {
         Game game = getGame(id);
+        synchronized (game) {
+            return move(game, from, to, promotion);
+        }
+    }
 
+    private Game move(Game game, Position from, Position to, PieceType promotion) {
         if (game.isFinalizada()) {
             throw new GameOverException("A partida já foi encerrada");
         }
@@ -106,16 +113,8 @@ public class GameService {
 
         boolean castling = SpecialMoves.isCastlingAttempt(piece, from, to);
         boolean enPassant = SpecialMoves.isEnPassant(game, piece, from, to);
-        if (castling) {
-            if (!SpecialMoves.canCastle(game, from, to)) {
-                throw new IllegalMoveException("Roque ilegal");
-            }
-        } else if (enPassant) {
-            if (enPassantExposesKing(board, piece, from, to)) {
-                throw new IllegalMoveException("Movimento ilegal ou deixa o próprio rei em xeque");
-            }
-        } else if (!legalMoveGenerator.isLegalMove(board, from, to, piece.color())) {
-            throw new IllegalMoveException("Movimento ilegal ou deixa o próprio rei em xeque");
+        if (!isLegalMove(game, piece, from, to, castling, enPassant)) {
+            throw new IllegalMoveException(castling ? "Roque ilegal" : "Movimento ilegal ou deixa o próprio rei em xeque");
         }
         PieceType promoted = SpecialMoves.resolvePromotion(piece, to, promotion);
 
@@ -131,23 +130,88 @@ public class GameService {
     }
 
     public Game playAiMove(String id) {
+        return playAiMove(id, AiDifficulty.ADVANCED);
+    }
+
+    public Game playAiMove(String id, AiDifficulty difficulty) {
         Game game = getGame(id);
-        if (game.isFinalizada()) {
-            throw new GameOverException("A partida já foi encerrada");
-        }
-
-        var move = minimaxAI.chooseMove(game.getBoard(), game.getTurnoAtual());
-        if (move.isEmpty()) {
-            EndGameResult result = endGameEvaluator.evaluate(game.getBoard(), game.getTurnoAtual());
-            game.setStatus(result.status());
-            game.setVencedor(result.vencedor());
-            if (result.status() == GameStatus.EM_ANDAMENTO) {
-                throw new IllegalMoveException("A IA não encontrou um lance legal para esta posição");
+        synchronized (game) {
+            if (game.isFinalizada()) {
+                throw new GameOverException("A partida já foi encerrada");
             }
-            return game;
-        }
 
-        return move(id, move.get().from(), move.get().to(), null);
+            var move = minimaxAI.chooseMove(game.getBoard(), game.getTurnoAtual(), difficulty);
+            if (move.isEmpty()) {
+                EndGameResult result = endGameEvaluator.evaluate(game.getBoard(), game.getTurnoAtual());
+                game.setStatus(result.status());
+                game.setVencedor(result.vencedor());
+                if (result.status() == GameStatus.EM_ANDAMENTO) {
+                    throw new IllegalMoveException("A IA não encontrou um lance legal para esta posição");
+                }
+                return game;
+            }
+
+            return move(game, move.get().from(), move.get().to(), null);
+        }
+    }
+
+    public List<LegalMove> getAllLegalMoves(String id) {
+        Game game = getGame(id);
+        synchronized (game) {
+            List<LegalMove> moves = new ArrayList<>();
+            if (game.isFinalizada()) {
+                return moves;
+            }
+            for (int row = 0; row < Board.SIZE; row++) {
+                for (int col = 0; col < Board.SIZE; col++) {
+                    Position from = new Position(row, col);
+                    for (Position to : getPossibleMoves(game, from)) {
+                        moves.add(new LegalMove(from, to));
+                    }
+                }
+            }
+            return moves;
+        }
+    }
+
+    public List<Position> getPossibleMoves(String id, Position from) {
+        if (!Board.isInside(from)) {
+            throw new IllegalMoveException("Posição fora do tabuleiro");
+        }
+        Game game = getGame(id);
+        synchronized (game) {
+            return game.isFinalizada() ? List.of() : getPossibleMoves(game, from);
+        }
+    }
+
+    private List<Position> getPossibleMoves(Game game, Position from) {
+        Piece piece = game.getBoard().get(from);
+        if (piece == null || piece.color() != game.getTurnoAtual()) {
+            return List.of();
+        }
+        List<Position> moves = new ArrayList<>();
+        for (int row = 0; row < Board.SIZE; row++) {
+            for (int col = 0; col < Board.SIZE; col++) {
+                Position to = new Position(row, col);
+                boolean castling = SpecialMoves.isCastlingAttempt(piece, from, to);
+                boolean enPassant = SpecialMoves.isEnPassant(game, piece, from, to);
+                if (isLegalMove(game, piece, from, to, castling, enPassant)) {
+                    moves.add(to);
+                }
+            }
+        }
+        return moves;
+    }
+
+    private boolean isLegalMove(Game game, Piece piece, Position from, Position to,
+            boolean castling, boolean enPassant) {
+        if (castling) {
+            return SpecialMoves.canCastle(game, from, to);
+        }
+        if (enPassant) {
+            return !enPassantExposesKing(game.getBoard(), piece, from, to);
+        }
+        return legalMoveGenerator.isLegalMove(game.getBoard(), from, to, piece.color());
     }
 
     /** Simula o en passant em uma cópia do tabuleiro e verifica se o próprio rei ficaria em xeque. */

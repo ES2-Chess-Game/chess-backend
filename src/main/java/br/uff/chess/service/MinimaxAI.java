@@ -13,7 +13,6 @@ import br.uff.chess.model.PieceType;
 @Service
 public class MinimaxAI {
 
-    private static final int SEARCH_DEPTH = 3;
     private static final int MATE_SCORE = 100_000;
 
     private final LegalMoveService legalMoveService;
@@ -23,6 +22,10 @@ public class MinimaxAI {
     }
 
     public Optional<LegalMove> chooseMove(Board board, Color color) {
+        return chooseMove(board, color, AiDifficulty.ADVANCED);
+    }
+
+    public Optional<LegalMove> chooseMove(Board board, Color color, AiDifficulty difficulty) {
         List<LegalMove> moves = legalMoveService.getLegalMoves(board, color);
         if (moves.isEmpty()) {
             return Optional.empty();
@@ -35,7 +38,7 @@ public class MinimaxAI {
         for (LegalMove move : moves) {
             Board nextBoard = board.copy();
             LegalMoveService.applyMove(nextBoard, move.from(), move.to());
-            int score = minimax(nextBoard, LegalMoveService.opponentOf(color), SEARCH_DEPTH - 1,
+            int score = minimax(nextBoard, LegalMoveService.opponentOf(color), difficulty.searchDepth() - 1,
                     1, alpha, beta, color);
             if (score > bestScore) {
                 bestScore = score;
