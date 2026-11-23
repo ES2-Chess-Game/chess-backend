@@ -24,12 +24,12 @@ public class ProfileController {
 
     @GetMapping
     public ProfileDTO consultar(Authentication auth) {
-        return ProfileDTO.from(profileService.get((Long) auth.getPrincipal()));
+        return profileService.profile((Long) auth.getPrincipal());
     }
 
     @PutMapping
     public ProfileDTO editar(@Valid @RequestBody UpdateProfileRequest req, Authentication auth) {
-        return ProfileDTO.from(profileService.update(
-                (Long) auth.getPrincipal(), req.username(), req.email(), req.avatarId()));
+        return profileService.update(
+                (Long) auth.getPrincipal(), req.username(), req.email(), req.avatarId());
     }
 }

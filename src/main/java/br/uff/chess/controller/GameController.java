@@ -64,7 +64,9 @@ public class GameController {
     }
 
     @GetMapping("/historico")
-    public List<GameDTO> historico(Authentication auth, HttpServletRequest request) {
+    public List<?> historico(Authentication auth, HttpServletRequest request,
+            @RequestParam(defaultValue = "false") boolean resumo) {
+        if (resumo) return gameService.historySummaries(userId(auth), visitorId(request));
         return gameService.history(userId(auth), visitorId(request)).stream().map(GameDTO::from).toList();
     }
 
@@ -89,31 +91,36 @@ public class GameController {
     }
 
     @GetMapping("/{id}")
-    public GameDTO obter(@PathVariable String id) {
+    public GameDTO obter(@PathVariable String id, Authentication auth) {
+        gameService.requireAccessById(id, userId(auth));
         return GameDTO.from(gameService.getGame(id));
     }
 
     @PostMapping("/{id}/lances")
-    public GameDTO mover(@PathVariable String id, @RequestBody MoveRequest req) {
+    public GameDTO mover(@PathVariable String id, @RequestBody MoveRequest req, Authentication auth) {
+        gameService.requireAccessById(id, userId(auth));
         Game game = gameService.move(id, req.origem(), req.destino(), req.promocao());
         return GameDTO.from(game);
     }
 
     @GetMapping("/recursos")
     public Map<String, Object> recursos() {
-        return Map.of("niveisIa", AiDifficulty.values(), "sugestoesDeLances", true, "partidasPersistentes", true);
+        return Map.of("niveisIa", AiDifficulty.values(), "sugestoesDeLances", true, "partidasPersistentes", true,
+                "perfilComEstatisticas", true);
     }
 
     @PostMapping("/{id}/ia")
     public GameDTO jogarComIa(@PathVariable String id,
-            @RequestParam(defaultValue = "ADVANCED") AiDifficulty difficulty) {
+            @RequestParam(defaultValue = "ADVANCED") AiDifficulty difficulty, Authentication auth) {
+        gameService.requireAccessById(id, userId(auth));
         return GameDTO.from(gameService.playAiMove(id, difficulty));
     }
 
     @GetMapping({"/{id}/movimentos", "/{id}/movimentos-possiveis"})
     public ResponseEntity<?> obterMovimentosPossiveis(@PathVariable String id,
             @RequestParam(required = false) Integer linha,
-            @RequestParam(required = false) Integer coluna) {
+            @RequestParam(required = false) Integer coluna, Authentication auth) {
+        gameService.requireAccessById(id, userId(auth));
         if ((linha == null) != (coluna == null)) {
             throw new IllegalMoveException("Informe linha e coluna da peça");
         }
