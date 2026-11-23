@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import br.uff.chess.service.exceptions.AvatarNotFoundException;
 import br.uff.chess.service.exceptions.InvalidCredentialsException;
+import br.uff.chess.service.exceptions.PasswordTooLongException;
 import br.uff.chess.service.exceptions.UserAlreadyExistsException;
 
 @RestControllerAdvice
@@ -28,6 +29,11 @@ public class ApiExceptionHandler {
     @ExceptionHandler(AvatarNotFoundException.class)
     public ResponseEntity<Map<String, String>> handleAvatarNotFound(AvatarNotFoundException e) {
         return erro(HttpStatus.NOT_FOUND, e.getMessage());
+    }
+
+    @ExceptionHandler(PasswordTooLongException.class)
+    public ResponseEntity<Map<String, String>> handlePasswordLength(PasswordTooLongException e) {
+        return erro(HttpStatus.BAD_REQUEST, e.getMessage());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

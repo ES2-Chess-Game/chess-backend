@@ -3,7 +3,7 @@ name: ci
 on:
   workflow_dispatch:
   pull_request:
-    branches: [prd, hml]
+    branches: [prd, hml, 'feature/**']
   push:
     branches: [prd, hml]
 

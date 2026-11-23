@@ -84,6 +84,27 @@ class AuthControllerTest {
     }
 
     @Test
+    void senhasIguaisUsamSaltsDiferentes() throws Exception {
+        cadastrar("alice", "alice@uff.br", "segredo123");
+        cadastrar("bruno", "bruno@uff.br", "segredo123");
+        assertNotEquals(users.findByUsername("alice").orElseThrow().getPasswordHash(),
+                users.findByUsername("bruno").orElseThrow().getPasswordHash());
+    }
+
+    @Test
+    void limiteDaSenhaContaBytesUtf8SemTruncar() throws Exception {
+        String senha = "á".repeat(36);
+        cadastrar("alice", "alice@uff.br", senha);
+        login("alice", senha);
+        mvc.perform(post("/api/auth/cadastro").contentType(MediaType.APPLICATION_JSON)
+                .content(json("username", "bruno", "email", "bruno@uff.br", "senha", senha + "a")))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                .content(json("username", "alice", "senha", senha + "a")))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void usernameRepetidoRetorna409() throws Exception {
         cadastrar("alice", "alice@uff.br", "segredo123");
         mvc.perform(post("/api/auth/cadastro").contentType(MediaType.APPLICATION_JSON)
