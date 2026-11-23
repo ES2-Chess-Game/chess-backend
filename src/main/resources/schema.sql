@@ -8,6 +8,13 @@ CREATE TABLE IF NOT EXISTS chess_game (
     state TEXT NOT NULL
 );
 
+ALTER TABLE chess_game ADD COLUMN IF NOT EXISTS mode VARCHAR(8);
+ALTER TABLE chess_game ADD COLUMN IF NOT EXISTS winner VARCHAR(6);
+ALTER TABLE chess_game ADD COLUMN IF NOT EXISTS settings TEXT;
+
+CREATE INDEX IF NOT EXISTS chess_game_user_finished_idx ON chess_game (user_id, finished_at);
+CREATE INDEX IF NOT EXISTS chess_game_visitor_finished_idx ON chess_game (visitor_id, finished_at);
+
 CREATE INDEX IF NOT EXISTS chess_game_user_idx ON chess_game (user_id, created_at);
 CREATE INDEX IF NOT EXISTS chess_game_visitor_idx ON chess_game (visitor_id, created_at);
 

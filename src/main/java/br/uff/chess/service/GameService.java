@@ -16,6 +16,7 @@ import br.uff.chess.model.Board;
 import br.uff.chess.model.Color;
 import br.uff.chess.model.Game;
 import br.uff.chess.model.GameStatus;
+import br.uff.chess.model.GameSummary;
 import br.uff.chess.model.GameSettings;
 import br.uff.chess.model.Piece;
 import br.uff.chess.model.PieceType;
@@ -136,8 +137,8 @@ public class GameService {
     @Transactional
     public Optional<Game> inProgress(Long userId, String visitorId) {
         if (store == null) return Optional.empty();
-        for (Game candidate : store.owned(userId, visitorId, false)) {
-            Game game = getGame(candidate.getId());
+        for (String id : store.activeIds(userId, visitorId)) {
+            Game game = getGame(id);
             if (!game.isFinalizada()) return Optional.of(game);
         }
         return Optional.empty();
@@ -146,10 +147,27 @@ public class GameService {
     @Transactional
     public List<Game> history(Long userId, String visitorId) {
         if (store == null) return List.of();
-        for (Game active : store.owned(userId, visitorId, false)) {
-            getGame(active.getId());
+        refreshActiveGames(userId, visitorId);
+        return store.finished(userId, visitorId);
+    }
+
+    @Transactional
+    public List<GameSummary> historySummaries(Long userId, String visitorId) {
+        if (store == null) return List.of();
+        refreshActiveGames(userId, visitorId);
+        return store.historySummaries(userId, visitorId);
+    }
+
+    private void refreshActiveGames(Long userId, String visitorId) {
+        for (String id : store.activeIds(userId, visitorId)) {
+            getGame(id);
         }
-        return store.owned(userId, visitorId, true);
+    }
+
+    public void requireAccessById(String id, Long userId) {
+        if (store != null && !store.mayAccessById(id, userId)) {
+            throw new GameNotFoundException(id);
+        }
     }
 
     @Transactional
