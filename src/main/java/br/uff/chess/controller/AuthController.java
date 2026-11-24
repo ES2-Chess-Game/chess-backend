@@ -39,7 +39,7 @@ public class AuthController {
 
     @PostMapping("/cadastro")
     public ResponseEntity<UserDTO> cadastro(@Valid @RequestBody RegisterRequest req) {
-        User user = authService.register(req.username(), req.email(), req.senha());
+        User user = authService.register(req.username(), req.email(), req.senha(), req.avatarId());
         return ResponseEntity.status(HttpStatus.CREATED).body(UserDTO.from(user));
     }
 

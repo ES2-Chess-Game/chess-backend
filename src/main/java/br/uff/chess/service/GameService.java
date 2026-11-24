@@ -186,6 +186,9 @@ public class GameService {
         if (game.expire(System.currentTimeMillis())) {
             save(game);
         } else if (!game.isFinalizada()) {
+            if (isAgainstAi(game) && loser != Color.BRANCA) {
+                throw new IllegalMoveException("Apenas o jogador pode desistir de uma partida contra a IA");
+            }
             game.end(GameStatus.DESISTENCIA, Game.opposite(loser), System.currentTimeMillis());
             save(game);
         }
@@ -201,13 +204,19 @@ public class GameService {
     public Game move(String id, Position from, Position to, PieceType promotion) {
         Game game = load(id, true);
         synchronized (game) {
+            requireActive(game);
+            if (isAgainstAi(game) && game.getTurnoAtual() != Color.BRANCA) {
+                throw new IllegalMoveException("Aguarde o lance da IA");
+            }
             return move(game, from, to, promotion);
         }
     }
 
-    private Game move(Game game, Position from, Position to, PieceType promotion) {
-        requireActive(game);
+    private boolean isAgainstAi(Game game) {
+        return "ai".equals(game.getSettings().modo());
+    }
 
+    private Game move(Game game, Position from, Position to, PieceType promotion) {
         if (!Board.isInside(from) || !Board.isInside(to)) {
             throw new IllegalMoveException("Posição fora do tabuleiro");
         }
@@ -259,6 +268,9 @@ public class GameService {
         Game game = load(id, true);
         synchronized (game) {
             requireActive(game);
+            if (isAgainstAi(game) && game.getTurnoAtual() != Color.PRETA) {
+                throw new IllegalMoveException("A IA só pode jogar com as pretas");
+            }
             AiDifficulty configured = game.getSettings().dificuldade();
             var move = minimaxAI.chooseMove(game.getBoard(), game.getTurnoAtual(),
                     configured == null ? difficulty : configured);
