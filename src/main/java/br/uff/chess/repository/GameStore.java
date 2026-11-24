@@ -2,7 +2,9 @@ package br.uff.chess.repository;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -121,6 +123,41 @@ public class GameStore {
                     }
                     return new GameResults(wins, losses, draws);
                 }, userId, userId);
+    }
+
+    public Map<Long, GameResults> rankingResults() {
+        return jdbc.query("""
+                SELECT user_id, COUNT(CASE WHEN winner = 'BRANCA' AND status = 'XEQUE_MATE' THEN 1 END) AS wins,
+                       COUNT(CASE WHEN winner = 'PRETA' THEN 1 END) AS losses,
+                       COUNT(CASE WHEN status = 'EMPATE' THEN 1 END) AS draws,
+                       CAST(NULL AS VARCHAR) AS status, CAST(NULL AS TEXT) AS legacy_state
+                FROM chess_game WHERE user_id IS NOT NULL AND finished_at IS NOT NULL AND mode = 'ai'
+                        AND (winner IS NOT NULL OR status = 'EMPATE')
+                GROUP BY user_id
+                UNION ALL
+                SELECT user_id, 0, 0, 0, status, state
+                FROM chess_game WHERE user_id IS NOT NULL AND finished_at IS NOT NULL
+                        AND (mode IS NULL OR (mode = 'ai' AND winner IS NULL AND status <> 'EMPATE'))
+                """, rows -> {
+                    Map<Long, GameResults> scores = new HashMap<>();
+                    while (rows.next()) {
+                        String state = rows.getString("legacy_state");
+                        GameResults row;
+                        if (state == null) {
+                            row = new GameResults(rows.getLong("wins"), rows.getLong("losses"), rows.getLong("draws"));
+                        } else {
+                            Snapshot snapshot = json.readValue(state, Snapshot.class);
+                            if (!"ai".equals(snapshot.settings().modo())) continue;
+                            String status = rows.getString("status");
+                            row = new GameResults(snapshot.winner() == Color.BRANCA && "XEQUE_MATE".equals(status) ? 1 : 0,
+                                    snapshot.winner() == Color.PRETA ? 1 : 0, "EMPATE".equals(status) ? 1 : 0);
+                        }
+                        scores.merge(rows.getLong("user_id"), row, (left, right) -> new GameResults(
+                                left.vitorias() + right.vitorias(), left.derrotas() + right.derrotas(),
+                                left.empates() + right.empates()));
+                    }
+                    return scores;
+                });
     }
 
     private GameSummary decodeSummary(ResultSet row, int index) throws SQLException {

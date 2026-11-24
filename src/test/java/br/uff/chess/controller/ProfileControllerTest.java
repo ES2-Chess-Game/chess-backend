@@ -22,6 +22,9 @@ import org.springframework.web.context.WebApplicationContext;
 
 import br.uff.chess.repository.AvatarRepository;
 import br.uff.chess.repository.UserRepository;
+import br.uff.chess.repository.GameStore;
+import br.uff.chess.model.Color;
+import br.uff.chess.model.GameStatus;
 import tools.jackson.databind.ObjectMapper;
 
 @SpringBootTest
@@ -41,6 +44,9 @@ class ProfileControllerTest {
 
     @Autowired
     ObjectMapper json;
+
+    @Autowired
+    GameStore games;
 
     MockMvc mvc;
 
@@ -107,7 +113,7 @@ class ProfileControllerTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(0));
         mvc.perform(get("/api/partidas/historico/{id}", id).session(bob)).andExpect(status().isNotFound());
         mvc.perform(get("/api/partidas/{id}", id).session(bob)).andExpect(status().isNotFound());
-        mvc.perform(post("/api/partidas/{id}/ia", id)).andExpect(status().isNotFound());
+        mvc.perform(post("/api/partidas/{id}/ia", id)).andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -142,6 +148,64 @@ class ProfileControllerTest {
     private void desistir(MockHttpSession session, String id) throws Exception {
         mvc.perform(post("/api/partidas/{id}/desistencia", id).session(session).param("cor", "BRANCA"))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void rankingIncluiTodasAsContasEUsaResultadosValidosContraIA() throws Exception {
+        MockHttpSession alice = cadastrarELogar("alice", "alice@uff.br");
+        MockHttpSession bob = cadastrarELogar("bob", "bob@uff.br");
+        cadastrarELogar("caio", "caio@uff.br");
+        cadastrarELogar("dora", "dora@uff.br");
+        Long avatarId = avatars.findAll().getFirst().getId();
+        mvc.perform(put("/api/perfil").session(alice).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"avatarId\":" + avatarId + "}")).andExpect(status().isOk());
+
+        encerrar(criarPartida(alice, "ai"), GameStatus.XEQUE_MATE, Color.BRANCA);
+        String antigo = criarPartida(alice, "ai");
+        encerrar(antigo, GameStatus.EMPATE, null);
+        jdbc.update("UPDATE chess_game SET mode = NULL, winner = NULL, settings = NULL WHERE id = ?", antigo);
+        desistir(alice, criarPartida(alice, "ai"));
+        encerrar(criarPartida(bob, "ai"), GameStatus.EMPATE, null);
+        encerrar(criarPartida(bob, "ai"), GameStatus.TEMPO_ESGOTADO, Color.BRANCA);
+        encerrar(criarPartida(bob, "local"), GameStatus.XEQUE_MATE, Color.BRANCA);
+        criarPartida(bob, "ai");
+
+        mvc.perform(get("/api/partidas/ranking"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(4))
+                .andExpect(jsonPath("$[0].username").value("alice"))
+                .andExpect(jsonPath("$[0].avatar.id").value(avatarId))
+                .andExpect(jsonPath("$[0].pontos").value(4))
+                .andExpect(jsonPath("$[0].derrotas").value(1))
+                .andExpect(jsonPath("$[0].email").doesNotExist())
+                .andExpect(jsonPath("$[0].passwordHash").doesNotExist())
+                .andExpect(jsonPath("$[1].username").value("bob"))
+                .andExpect(jsonPath("$[1].pontos").value(1))
+                .andExpect(jsonPath("$[2].username").value("caio"))
+                .andExpect(jsonPath("$[2].pontos").value(0))
+                .andExpect(jsonPath("$[3].username").value("dora"));
+    }
+
+    @Test
+    void jogadorNaoPodeFazerLanceNemDesistirPelaIA() throws Exception {
+        MockHttpSession alice = cadastrarELogar("alice", "alice@uff.br");
+        String id = criarPartida(alice, "ai");
+        mvc.perform(post("/api/partidas/{id}/ia", id).session(alice)).andExpect(status().isBadRequest());
+        mvc.perform(post("/api/partidas/{id}/desistencia", id).session(alice).param("cor", "PRETA"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post("/api/partidas/{id}/lances", id).session(alice).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"origemLinha\":6,\"origemColuna\":4,\"destinoLinha\":4,\"destinoColuna\":4}"))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/partidas/{id}/lances", id).session(alice).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"origemLinha\":1,\"origemColuna\":4,\"destinoLinha\":3,\"destinoColuna\":4}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post("/api/partidas/{id}/ia", id).session(alice)).andExpect(status().isOk());
+    }
+
+    private void encerrar(String id, GameStatus status, Color vencedor) {
+        var game = games.find(id, false).orElseThrow();
+        game.end(status, vencedor, System.currentTimeMillis());
+        games.update(game);
     }
 
     @Test

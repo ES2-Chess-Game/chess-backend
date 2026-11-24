@@ -21,6 +21,7 @@ import org.springframework.web.context.WebApplicationContext;
 
 import br.uff.chess.model.User;
 import br.uff.chess.repository.UserRepository;
+import br.uff.chess.repository.AvatarRepository;
 
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 
@@ -32,6 +33,9 @@ class AuthControllerTest {
 
     @Autowired
     UserRepository users;
+
+    @Autowired
+    AvatarRepository avatars;
 
     MockMvc mvc;
 
@@ -73,6 +77,24 @@ class AuthControllerTest {
                 .andReturn();
         String body = result.getResponse().getContentAsString();
         assertTrue(!body.contains("senha") && !body.contains("passwordHash") && !body.contains("segredo123"));
+    }
+
+    @Test
+    void cadastroSalvaAvatarNaContaERecusaAvatarInexistente() throws Exception {
+        Long avatarId = avatars.findAll().getFirst().getId();
+        String dados = """
+                {"username":"alice","email":"alice@uff.br","senha":"segredo123","avatarId":%d}
+                """;
+        mvc.perform(post("/api/auth/cadastro").contentType(MediaType.APPLICATION_JSON)
+                .content(dados.formatted(Long.MAX_VALUE))).andExpect(status().isNotFound());
+        assertTrue(users.findByUsername("alice").isEmpty());
+
+        mvc.perform(post("/api/auth/cadastro").contentType(MediaType.APPLICATION_JSON)
+                .content(dados.formatted(avatarId)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.avatar.id").value(avatarId));
+        mvc.perform(get("/api/auth/me").session(login("alice", "segredo123")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.avatar.id").value(avatarId));
     }
 
     @Test
@@ -189,9 +211,10 @@ class AuthControllerTest {
     }
 
     @Test
-    void partidaAnonimaContinuaFuncionando() throws Exception {
-        mvc.perform(post("/api/partidas"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.userId").doesNotExist());
+    void partidaAnonimaExigeLogin() throws Exception {
+        for (String modo : new String[] {"local", "ai"}) {
+            mvc.perform(post("/api/partidas").contentType(MediaType.APPLICATION_JSON).content(json("modo", modo)))
+                    .andExpect(status().isUnauthorized());
+        }
     }
 }
