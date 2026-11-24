@@ -106,7 +106,7 @@ public class GameController {
     @GetMapping("/recursos")
     public Map<String, Object> recursos() {
         return Map.of("niveisIa", AiDifficulty.values(), "sugestoesDeLances", true, "partidasPersistentes", true,
-                "perfilComEstatisticas", true);
+                "perfilComEstatisticas", true, "ranking", true);
     }
 
     @PostMapping("/{id}/ia")
