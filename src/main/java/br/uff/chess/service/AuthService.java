@@ -8,6 +8,8 @@ import org.springframework.stereotype.Service;
 
 import br.uff.chess.model.User;
 import br.uff.chess.repository.UserRepository;
+import br.uff.chess.repository.AvatarRepository;
+import br.uff.chess.service.exceptions.AvatarNotFoundException;
 import br.uff.chess.service.exceptions.InvalidCredentialsException;
 import br.uff.chess.service.exceptions.PasswordTooLongException;
 import br.uff.chess.service.exceptions.UserAlreadyExistsException;
@@ -19,13 +21,15 @@ public class AuthService {
 
     private final UserRepository users;
     private final PasswordEncoder encoder;
+    private final AvatarRepository avatars;
 
-    public AuthService(UserRepository users, PasswordEncoder encoder) {
+    public AuthService(UserRepository users, PasswordEncoder encoder, AvatarRepository avatars) {
         this.users = users;
         this.encoder = encoder;
+        this.avatars = avatars;
     }
 
-    public User register(String username, String email, String senha) {
+    public User register(String username, String email, String senha, Long avatarId) {
         if (exceedsBcryptLimit(senha)) {
             throw new PasswordTooLongException();
         }
@@ -35,8 +39,12 @@ public class AuthService {
         if (users.existsByEmail(email)) {
             throw new UserAlreadyExistsException("E-mail já cadastrado");
         }
+        var avatar = avatarId == null ? null
+                : avatars.findById(avatarId).orElseThrow(() -> new AvatarNotFoundException(avatarId));
+        User user = new User(username, email, encoder.encode(senha));
+        user.setAvatar(avatar);
         try {
-            return users.saveAndFlush(new User(username, email, encoder.encode(senha)));
+            return users.saveAndFlush(user);
         } catch (DataIntegrityViolationException e) {
             throw new UserAlreadyExistsException("Usuário ou e-mail já cadastrado");
         }

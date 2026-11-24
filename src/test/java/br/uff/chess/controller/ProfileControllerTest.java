@@ -107,7 +107,7 @@ class ProfileControllerTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(0));
         mvc.perform(get("/api/partidas/historico/{id}", id).session(bob)).andExpect(status().isNotFound());
         mvc.perform(get("/api/partidas/{id}", id).session(bob)).andExpect(status().isNotFound());
-        mvc.perform(post("/api/partidas/{id}/ia", id)).andExpect(status().isNotFound());
+        mvc.perform(post("/api/partidas/{id}/ia", id)).andExpect(status().isUnauthorized());
     }
 
     @Test
