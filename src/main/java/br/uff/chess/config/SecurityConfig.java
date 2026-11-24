@@ -3,6 +3,7 @@ package br.uff.chess.config;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -12,12 +13,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 
-/**
- * O contrato da API não prevê autenticação. Sem esta config, o
- * spring-boot-starter-security bloquearia toda /api/** com Basic Auth
- * (senha gerada aleatoriamente a cada start) e o front nunca conseguiria
- * chamar o backend. Libera /api/** e mantém o CORS do CorsConfig.
- */
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
@@ -32,7 +27,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/avatares/**").permitAll()
                         .requestMatchers("/api/auth/cadastro", "/api/auth/login").permitAll()
-                        .requestMatchers("/api/auth/**", "/api/perfil").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/partidas/recursos", "/api/partidas/ranking").permitAll()
+                        .requestMatchers("/api/auth/**", "/api/perfil", "/api/partidas", "/api/partidas/**").authenticated()
                         .requestMatchers("/api/**").permitAll()
                         .anyRequest().authenticated());
         return http.build();

@@ -21,6 +21,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 import br.uff.chess.model.User;
 import br.uff.chess.repository.UserRepository;
+import br.uff.chess.repository.AvatarRepository;
 import br.uff.chess.service.exceptions.InvalidCredentialsException;
 import br.uff.chess.service.exceptions.UserAlreadyExistsException;
 
@@ -30,17 +31,20 @@ class AuthServiceTest {
     @Mock
     private UserRepository users;
 
+    @Mock
+    private AvatarRepository avatars;
+
     private final PasswordEncoder encoder = new BCryptPasswordEncoder(4);
 
     private AuthService service() {
-        return new AuthService(users, encoder);
+        return new AuthService(users, encoder, avatars);
     }
 
     @Test
     void cadastroGuardaSenhaComHash() {
         when(users.saveAndFlush(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        User user = service().register("ana", "ana@email.com", "segredo123");
+        User user = service().register("ana", "ana@email.com", "segredo123", null);
 
         assertNotEquals("segredo123", user.getPasswordHash());
         assertTrue(encoder.matches("segredo123", user.getPasswordHash()));
@@ -50,7 +54,7 @@ class AuthServiceTest {
     void cadastroRecusaNomeDeUsuarioRepetido() {
         when(users.existsByUsername("ana")).thenReturn(true);
 
-        assertThrows(UserAlreadyExistsException.class, () -> service().register("ana", "nova@email.com", "x"));
+        assertThrows(UserAlreadyExistsException.class, () -> service().register("ana", "nova@email.com", "x", null));
         verify(users, never()).saveAndFlush(any());
     }
 
@@ -58,7 +62,7 @@ class AuthServiceTest {
     void cadastroRecusaEmailRepetido() {
         when(users.existsByEmail("ana@email.com")).thenReturn(true);
 
-        assertThrows(UserAlreadyExistsException.class, () -> service().register("nova", "ana@email.com", "x"));
+        assertThrows(UserAlreadyExistsException.class, () -> service().register("nova", "ana@email.com", "x", null));
         verify(users, never()).saveAndFlush(any());
     }
 
@@ -66,7 +70,7 @@ class AuthServiceTest {
     void cadastroSimultaneoQueViolaUnicidadeViraUsuarioJaExistente() {
         when(users.saveAndFlush(any(User.class))).thenThrow(new DataIntegrityViolationException("unique"));
 
-        assertThrows(UserAlreadyExistsException.class, () -> service().register("ana", "ana@email.com", "x"));
+        assertThrows(UserAlreadyExistsException.class, () -> service().register("ana", "ana@email.com", "x", null));
     }
 
     @Test
