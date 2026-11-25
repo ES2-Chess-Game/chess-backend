@@ -1,5 +1,6 @@
 package br.uff.chess.controller;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
@@ -196,9 +197,29 @@ class ProfileControllerTest {
                 .andExpect(jsonPath("$[0].passwordHash").doesNotExist())
                 .andExpect(jsonPath("$[1].username").value("bob"))
                 .andExpect(jsonPath("$[1].pontos").value(1))
-                .andExpect(jsonPath("$[2].username").value("caio"))
-                .andExpect(jsonPath("$[2].pontos").value(0))
-                .andExpect(jsonPath("$[3].username").value("dora"));
+                .andExpect(jsonPath("$[2:4].username", containsInAnyOrder("caio", "dora")))
+                .andExpect(jsonPath("$[2:4].pontos", containsInAnyOrder(0, 0)));
+    }
+
+    @Test
+    void rankingDesempataPelaMenorQuantidadeDeDerrotas() throws Exception {
+        MockHttpSession alice = cadastrarELogar("alice", "alice@uff.br");
+        MockHttpSession zara = cadastrarELogar("zara", "zara@uff.br");
+
+        encerrar(criarPartida(alice, "ai"), GameStatus.XEQUE_MATE, Color.BRANCA);
+        desistir(alice, criarPartida(alice, "ai"));
+        for (int partida = 0; partida < 3; partida++) {
+            encerrar(criarPartida(zara, "ai"), GameStatus.EMPATE, null);
+        }
+
+        mvc.perform(get("/api/partidas/ranking"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].username").value("zara"))
+                .andExpect(jsonPath("$[0].pontos").value(3))
+                .andExpect(jsonPath("$[0].derrotas").value(0))
+                .andExpect(jsonPath("$[1].username").value("alice"))
+                .andExpect(jsonPath("$[1].pontos").value(3))
+                .andExpect(jsonPath("$[1].derrotas").value(1));
     }
 
     @Test

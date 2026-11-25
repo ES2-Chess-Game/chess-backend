@@ -34,9 +34,7 @@ public class RankingController {
                             stats.empates(), stats.vitorias() * 3 + stats.empates());
                 })
                 .sorted(Comparator.comparingLong(Entry::pontos).reversed()
-                        .thenComparing(Comparator.comparingLong(Entry::vitorias).reversed())
-                        .thenComparing(Entry::username, String.CASE_INSENSITIVE_ORDER)
-                        .thenComparing(Entry::username))
+                        .thenComparingLong(Entry::derrotas))
                 .toList();
     }
 
