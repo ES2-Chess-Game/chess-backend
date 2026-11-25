@@ -137,11 +137,7 @@ public class GameService {
     @Transactional
     public Optional<Game> inProgress(Long userId, String visitorId) {
         if (store == null) return Optional.empty();
-        for (String id : store.activeIds(userId, visitorId)) {
-            Game game = getGame(id);
-            if (!game.isFinalizada()) return Optional.of(game);
-        }
-        return Optional.empty();
+        return store.latestId(userId, visitorId).map(this::getGame).filter(game -> !game.isFinalizada());
     }
 
     @Transactional

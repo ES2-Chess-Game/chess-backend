@@ -117,6 +117,21 @@ class ProfileControllerTest {
     }
 
     @Test
+    void desistirDaPartidaMaisRecenteNaoReabreUmaPartidaAntiga() throws Exception {
+        MockHttpSession session = cadastrarELogar("alice", "alice@uff.br");
+        String older = criarPartida(session, "local");
+        jdbc.update("UPDATE chess_game SET created_at = 1 WHERE id = ?", older);
+        String current = criarPartida(session, "ai");
+
+        mvc.perform(get("/api/partidas/em-andamento").session(session))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.id").value(current));
+        desistir(session, current);
+        mvc.perform(get("/api/partidas/em-andamento").session(session)).andExpect(status().isNotFound());
+        mvc.perform(get("/api/partidas/historico/{id}", current).session(session))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("DESISTENCIA"));
+    }
+
+    @Test
     void estatisticasContamPartidasEncerradasContraIaComResumosNovosEAntigos() throws Exception {
         MockHttpSession alice = cadastrarELogar("alice", "alice@uff.br");
         MockHttpSession bob = cadastrarELogar("bob", "bob@uff.br");
