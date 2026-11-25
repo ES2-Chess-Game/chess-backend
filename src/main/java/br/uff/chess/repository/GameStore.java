@@ -70,6 +70,15 @@ public class GameStore {
                 """, Boolean.class, id, userId));
     }
 
+    public Optional<String> latestId(Long userId, String visitorId) {
+        if (userId == null && visitorId == null) return Optional.empty();
+        return jdbc.queryForList("""
+                SELECT id FROM chess_game
+                WHERE user_id = ? OR (user_id IS NULL AND visitor_id = ?)
+                ORDER BY created_at DESC, id DESC LIMIT 1
+                """, String.class, userId, visitorId).stream().findFirst();
+    }
+
     public List<String> activeIds(Long userId, String visitorId) {
         if (userId == null && visitorId == null) return List.of();
         return jdbc.queryForList("""
